@@ -34,12 +34,11 @@ class _ExpandingCardState extends State<ExpandingCard>
   void initState() {
     super.initState();
     _controller = new AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 100),
       vsync: this,
     );
     _animation = Tween(begin: 0.5, end: 1.0).animate(_controller);
     _animation.addStatusListener((status) {
-      print(status);
       if (status == AnimationStatus.completed) {
         setState(() {
           _isFullyOpen = true;

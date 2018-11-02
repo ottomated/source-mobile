@@ -260,26 +260,31 @@ class _HomePageState extends State<HomePage>
       globals.studentID = results.studentID;
       globals.stateID = results.stateID;
       globals.imageFilePath = results.imageFilePath;
-
       Iterable<double> gpas = results.classes
           .map((c) => c.overallGrades.keys
               .where((k) => k.startsWith('S'))
               .map((k) => c.overallGrades[k].percent * 0.04))
           .expand((i) => i);
-      _gpa = ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10)
-          .toString();
-
+      if (gpas.length == 0) {
+        _gpa = '?';
+      } else {
+        _gpa = ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10)
+            .toString();
+      }
       Iterable<double> weightedGpas = results.classes
           .map((c) => c.overallGrades.keys
               .where((k) => k.startsWith('S'))
               .map((k) => c.overallGrades[k].percent * c.gpaWeight))
           .expand((i) => i);
-      _weightedGpa =
-          ((weightedGpas.reduce((a, b) => a + b) / weightedGpas.length * 10)
-                      .round() /
-                  10)
-              .toString();
-
+      if (weightedGpas.length == 0) {
+        _weightedGpa = '?';
+      } else {
+        _weightedGpa =
+            ((weightedGpas.reduce((a, b) => a + b) / weightedGpas.length * 10)
+                        .round() /
+                    10)
+                .toString();
+      }
       _tabs = [tabProfile()];
       _barTabs = [
         Tab(
@@ -287,9 +292,23 @@ class _HomePageState extends State<HomePage>
         ),
       ];
       _tabs.addAll(results.classes.map((sourceClass) {
+        String k = sourceClass.overallGrades.keys
+            .firstWhere((k) => k.startsWith('S'), orElse: () => '');
+        Color c;
+        if (k == '') {
+          c = Colors.white24;
+        } else {
+          print(k);
+          c = Color(sourceClass.overallGrades[k].color);
+        }
         _barTabs.add(
           Tab(
-            text: sourceClass.period.toString(),
+            child: Text(
+              sourceClass.period.toString(),
+              style: TextStyle(
+                color: c,
+              ),
+            ),
           ),
         );
         return Padding(

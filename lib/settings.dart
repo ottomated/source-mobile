@@ -5,8 +5,7 @@ import 'login.dart';
 import 'globals.dart' as globals;
 
 class SettingsPage extends StatefulWidget {
-  SettingsPage({Key key, this.message}) : super(key: key);
-  final String message;
+  SettingsPage({Key key}) : super(key: key);
 
   @override
   SettingsPageState createState() {
@@ -48,7 +47,7 @@ class SettingsPageState extends State<SettingsPage> {
               trailing: Icon(Icons.person_add),
             ),
             Divider(),
-            ListTile()
+            ExpansionTile(title: Text('Notifications'),)
           ],
         ),
       ),
