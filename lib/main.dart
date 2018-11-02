@@ -292,7 +292,7 @@ class _HomePageState extends State<HomePage>
         ),
       ];
       _tabs.addAll(results.classes.map((sourceClass) {
-        String k = sourceClass.overallGrades.keys
+        String k = sourceClass.overallGrades.keys.toList().reversed
             .firstWhere((k) => k.startsWith('S'), orElse: () => '');
         Color c;
         if (k == '') {
