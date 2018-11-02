@@ -408,6 +408,99 @@ class Source {
   }
 
   Future doReq(String username, String password) async {
+    if (username == 'test_student') {
+      SourceResults res = SourceResults();
+      res.grade = '12';
+      res.stateID = '1234567890';
+      res.studentID = '1234567';
+      res.name = ['Test', 'Student'];
+      // Download photo
+      http.Response response = await http.get('https://picsum.photos/200/?random');
+      var bytes = response.bodyBytes;
+      String dir = (await getApplicationDocumentsDirectory()).path;
+      File file = File('$dir/${res.name[0]}.jpeg');
+      res.imageFilePath = '$dir/${res.name[0]}.jpeg';
+      await file.writeAsBytes(bytes);
+      res.classes = [
+        SourceClass(
+          className: 'AP CLASS 1',
+          period: 1,
+          teacherName: 'Teacher Name',
+          teacherEmail: 'email@example.com',
+          overallGrades: {
+            'Q1': SourceClassGrade(100.0),
+            'Q2': SourceClassGrade(80.0),
+            'S1': SourceClassGrade(70.0),
+            'Q3': SourceClassGrade(60.0),
+            'Q4': SourceClassGrade(50.0),
+            'S2': SourceClassGrade(40.0),
+          },
+          assignments: [
+            SourceAssignment(
+              category: 'HW',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(10.0, 10.0, true),
+              name: 'Assignment 1',
+            ),
+            SourceAssignment(
+              category: 'HW',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(87.0, 100.0, true),
+              name: 'Assignment 2',
+            ),
+            SourceAssignment(
+              category: 'HW',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(0.0, 10.0, false),
+              name: 'Ungraded Assignment 3',
+            ),
+          ],
+        ),SourceClass(
+          className: 'HONORS CLASS 1H',
+          period: 2,
+          teacherName: 'Teacher Name',
+          teacherEmail: 'email@example.com',
+          overallGrades: {
+            'Q1': SourceClassGrade(100.0),
+            'Q2': SourceClassGrade(100.0),
+            'S1': SourceClassGrade(100.0),
+          },
+          assignments: [
+            SourceAssignment(
+              category: 'TEST',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(100.0, 100.0, true),
+              name: 'Assignment 1',
+            ),
+            SourceAssignment(
+              category: 'TEST',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(80.0, 100.0, true),
+              name: 'Assignment 2',
+            ),
+            SourceAssignment(
+              category: 'TEST',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(70.0, 100.0, true),
+              name: 'Assignment 3',
+            ),
+            SourceAssignment(
+              category: 'TEST',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(60.0, 100.0, true),
+              name: 'Assignment 4',
+            ),
+            SourceAssignment(
+              category: 'TEST',
+              dueDate: DateTime.now(),
+              grade: SourceAssignmentGrade(50.0, 100.0, true),
+              name: 'Assignment 5',
+            ),
+          ],
+        ),
+      ];
+      return res;
+    }
     try {
       SourceResults res = SourceResults();
       http.Request req;
