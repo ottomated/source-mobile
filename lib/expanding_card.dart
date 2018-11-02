@@ -1,7 +1,6 @@
 library expanding_card;
 
 import 'package:flutter/material.dart';
-import 'dart:math';
 
 class ExpandingCard extends StatefulWidget {
   final Widget top;

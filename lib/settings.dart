@@ -6,7 +6,7 @@ import 'globals.dart' as globals;
 
 class SettingsPage extends StatefulWidget {
   SettingsPage({Key key, this.classes}) : super(key: key);
-  List<SourceClass> classes;
+  final List<SourceClass> classes;
 
   @override
   SettingsPageState createState() {

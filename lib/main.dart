@@ -201,7 +201,7 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _generateTableCell(SourceClassGrade grade) {
+  /*Widget _generateTableCell(SourceClassGrade grade) {
     return _generateTableCellText('${grade.letter}\n${grade.percent}%', 12.0);
   }
 
@@ -214,7 +214,7 @@ class _HomePageState extends State<HomePage>
         style: TextStyle(fontSize: size),
       ),
     );
-  }
+  }*/
 
   bool _isRefreshing = false;
   Future<void> _doRefresh() async {
