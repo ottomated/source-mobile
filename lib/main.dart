@@ -253,7 +253,9 @@ class _HomePageState extends State<HomePage>
     _performDoRefresh(results);
   }
 
+  SourceResults _results;
   Future<void> _performDoRefresh(SourceResults results) async {
+    _results = results;
     setState(() {
       globals.name = results.name;
       globals.grade = results.grade;
@@ -292,13 +294,14 @@ class _HomePageState extends State<HomePage>
         ),
       ];
       _tabs.addAll(results.classes.map((sourceClass) {
-        String k = sourceClass.overallGrades.keys.toList().reversed
+        String k = sourceClass.overallGrades.keys
+            .toList()
+            .reversed
             .firstWhere((k) => k.startsWith('S'), orElse: () => '');
         Color c;
         if (k == '') {
           c = Colors.white24;
         } else {
-          print(k);
           c = Color(sourceClass.overallGrades[k].color);
         }
         _barTabs.add(
@@ -491,7 +494,8 @@ class _HomePageState extends State<HomePage>
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => SettingsPage(),
+                    builder: (context) =>
+                        SettingsPage(classes: _results.classes),
                   ),
                 );
                 if (globals.cameBackFromSettingsRefresh) {
