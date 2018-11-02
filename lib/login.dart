@@ -99,6 +99,7 @@ TextEditingController _passwordController;
                   globals.password = _passwordController.value.text;
                   prefs.setString('a', globals.username);
                   prefs.setString('b', globals.password);
+                  globals.cameBackFromSettingsRefresh2 = true;
                   if (Navigator.canPop(context)) {
                     Navigator.pop(context);
                   } else {

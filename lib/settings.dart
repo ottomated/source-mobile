@@ -39,13 +39,16 @@ class SettingsPageState extends State<SettingsPage> {
                     builder: (context) => LoginPage(),
                   ),
                 );
+                if (globals.cameBackFromSettingsRefresh2) {
+                  globals.cameBackFromSettingsRefresh2 = false;
+                  globals.cameBackFromSettingsRefresh = true;
+                  Navigator.of(context).pop();
+                }
               },
               trailing: Icon(Icons.person_add),
             ),
             Divider(),
-            ListTile(
-              
-            )
+            ListTile()
           ],
         ),
       ),

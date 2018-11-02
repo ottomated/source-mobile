@@ -23,6 +23,7 @@ void main() {
 Future<void> runFirebase() async {
   _firebaseMessaging.requestNotificationPermissions();
   _firebaseToken = await _firebaseMessaging.getToken();
+  print(_firebaseToken);
   _firebaseMessaging.configure(
     onMessage: (Map<String, dynamic> message) async {
       print("onMessage: $message");
@@ -81,6 +82,8 @@ class _HomePageState extends State<HomePage>
   TabController _tabController;
   List<Widget> _tabs = [];
   List<Tab> _barTabs = [];
+  String _gpa = '';
+  String _weightedGpa = '';
   GlobalKey<ScaffoldState> key;
 
   @override
@@ -96,7 +99,7 @@ class _HomePageState extends State<HomePage>
       _barTabs = [
         Tab(icon: studentPicture(10.0)),
       ];
-      _tabController = new TabController(vsync: this, length: 20);
+      _tabController = TabController(vsync: this, length: 20);
     }
 
     _doQuickRefresh();
@@ -187,8 +190,13 @@ class _HomePageState extends State<HomePage>
             "State ID: ${globals.stateID}",
             style: TextStyle(fontSize: 14.0),
           ),
-          EdgeInsets.all(6.0),
+          EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 12.0),
         ),
+        Text(
+          'GPA: $_gpa\nweighted: $_weightedGpa',
+          style: TextStyle(fontSize: 17.0),
+          textAlign: TextAlign.center,
+        )
       ],
     );
   }
@@ -213,18 +221,31 @@ class _HomePageState extends State<HomePage>
     setState(() {
       _isRefreshing = true;
     });
-    SourceResults results =
-        await _source.doReq(globals.username, globals.password);
+    dynamic results = await _source.doReq(globals.username, globals.password);
     setState(() {
       _isRefreshing = false;
     });
     if (results == null) {
-      return Navigator.pushReplacement(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => LoginPage(message: 'Invalid Credentials'),
         ),
       );
+      return;
+    } else if (results.runtimeType != SourceResults) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text("Exception"),
+            content: Text(
+              results.toString(),
+            ),
+          );
+        },
+      );
+      return;
     }
     var prefs = await SharedPreferences.getInstance();
     //print(results.classes[0].assignments);
@@ -239,6 +260,26 @@ class _HomePageState extends State<HomePage>
       globals.studentID = results.studentID;
       globals.stateID = results.stateID;
       globals.imageFilePath = results.imageFilePath;
+
+      Iterable<double> gpas = results.classes
+          .map((c) => c.overallGrades.keys
+              .where((k) => k.startsWith('S'))
+              .map((k) => c.overallGrades[k].percent * 0.04))
+          .expand((i) => i);
+      _gpa = ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10)
+          .toString();
+
+      Iterable<double> weightedGpas = results.classes
+          .map((c) => c.overallGrades.keys
+              .where((k) => k.startsWith('S'))
+              .map((k) => c.overallGrades[k].percent * c.gpaWeight))
+          .expand((i) => i);
+      _weightedGpa =
+          ((weightedGpas.reduce((a, b) => a + b) / weightedGpas.length * 10)
+                      .round() /
+                  10)
+              .toString();
+
       _tabs = [tabProfile()];
       _barTabs = [
         Tab(
@@ -246,7 +287,11 @@ class _HomePageState extends State<HomePage>
         ),
       ];
       _tabs.addAll(results.classes.map((sourceClass) {
-        _barTabs.add(Tab(text: sourceClass.period.toString()));
+        _barTabs.add(
+          Tab(
+            text: sourceClass.period.toString(),
+          ),
+        );
         return Padding(
           padding: EdgeInsets.all(16.0),
           child: Column(
@@ -299,17 +344,50 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
               ),
-              Center(
-                child: Container(
-                  padding: EdgeInsets.all(32.0),
-                  child: Table(
+              Flexible(
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: sourceClass.overallGrades.keys.map((q) {
+                    return Container(
+                      padding: EdgeInsets.all(4.0),
+                      child: Chip(
+                        backgroundColor:
+                            Color(sourceClass.overallGrades[q].color),
+                        label: RichText(
+                          text: TextSpan(
+                            text: q,
+                            style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold),
+                            children: [
+                              TextSpan(
+                                text:
+                                    ': ${sourceClass.overallGrades[q].letter}',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 15.0),
+                              ),
+                              TextSpan(
+                                text:
+                                    '  ${sourceClass.overallGrades[q].percent.round()}%',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 13.0),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  /* Table(
                     children: sourceClass.overallGrades.keys.map((q) {
                       return new TableRow(children: [
                         _generateTableCellText(q, 15.0),
                         _generateTableCell(sourceClass.overallGrades[q]),
                       ]);
                     }).toList(),
-                  ),
+                  ),*/
                 ),
               ),
               // Assignments
@@ -334,7 +412,8 @@ class _HomePageState extends State<HomePage>
         ]);
       }).toList(),
     );*/
-    return Flexible(
+    return Expanded(
+      flex: 5,
       child: ListView(
         physics: AlwaysScrollableScrollPhysics(),
         children: asses.reversed.map((ass) {
@@ -371,7 +450,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    key = new GlobalKey<ScaffoldState>();
+    key = GlobalKey<ScaffoldState>();
     return Scaffold(
       key: key,
       appBar: AppBar(
@@ -396,6 +475,10 @@ class _HomePageState extends State<HomePage>
                     builder: (context) => SettingsPage(),
                   ),
                 );
+                if (globals.cameBackFromSettingsRefresh) {
+                  globals.cameBackFromSettingsRefresh = false;
+                  _doRefresh();
+                }
               },
               icon: Icon(Icons.settings),
             ),
@@ -421,7 +504,9 @@ class _HomePageState extends State<HomePage>
       ),
     ];
     if (_isRefreshing) {
-      ws.add(LinearProgressIndicator());
+      ws.add(
+        SizedBox(child: LinearProgressIndicator(), height: 2.0),
+      );
     }
     return ws;
   }

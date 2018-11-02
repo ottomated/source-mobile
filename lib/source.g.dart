@@ -49,7 +49,7 @@ SourceClass _$SourceClassFromJson(Map<String, dynamic> json) {
               ? null
               : SourceAssignment.fromJson(e as Map<String, dynamic>))
           ?.toList())
-    ..isAP = json['isAP'] as bool;
+    ..gpaWeight = (json['gpaWeight'] as num)?.toDouble();
 }
 
 Map<String, dynamic> _$SourceClassToJson(SourceClass instance) =>
@@ -59,7 +59,7 @@ Map<String, dynamic> _$SourceClassToJson(SourceClass instance) =>
       'teacherName': instance.teacherName,
       'teacherEmail': instance.teacherEmail,
       'roomNumber': instance.roomNumber,
-      'isAP': instance.isAP,
+      'gpaWeight': instance.gpaWeight,
       'overallGrades': instance.overallGrades,
       'assignments': instance.assignments
     };
