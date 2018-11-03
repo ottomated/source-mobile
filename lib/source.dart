@@ -38,7 +38,7 @@ class SourceResults {
 @JsonSerializable()
 class SourceClass {
   String className;
-  int period;
+  String period;
   String teacherName;
   String teacherEmail;
   String roomNumber;
@@ -281,7 +281,7 @@ class Source {
         document.querySelectorAll('#tblgrades tbody tr.center:not(.th2)');
     for (Element row in rows) {
       // Period
-      int period = int.parse(row.children[0].innerHtml.split('(')[0]);
+      String period = row.children[0].innerHtml.split('(')[0];
       // Teacher + Class Name box
       Element box = row.querySelector('[align="left"]');
       // Class name and room                v magic character
@@ -424,7 +424,7 @@ class Source {
       res.classes = [
         SourceClass(
           className: 'AP CLASS 1',
-          period: 1,
+          period: '1',
           teacherName: 'Teacher Name',
           teacherEmail: 'email@example.com',
           overallGrades: {
@@ -457,7 +457,7 @@ class Source {
           ],
         ),SourceClass(
           className: 'HONORS CLASS 1H',
-          period: 2,
+          period: '2',
           teacherName: 'Teacher Name',
           teacherEmail: 'email@example.com',
           overallGrades: {
@@ -501,7 +501,6 @@ class Source {
       ];
       return res;
     }
-    try {
       SourceResults res = SourceResults();
       http.Request req;
       http.StreamedResponse response;
@@ -606,9 +605,5 @@ class Source {
       // Parse HTMLs
       await parseResHTML(res);
       return res;
-    } catch (e) {
-      print(e);
-      return e;
-    }
   }
 }

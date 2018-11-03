@@ -34,7 +34,7 @@ Map<String, dynamic> _$SourceResultsToJson(SourceResults instance) =>
 SourceClass _$SourceClassFromJson(Map<String, dynamic> json) {
   return SourceClass(
       className: json['className'] as String,
-      period: json['period'] as int,
+      period: json['period'] as String,
       teacherName: json['teacherName'] as String,
       teacherEmail: json['teacherEmail'] as String,
       roomNumber: json['roomNumber'] as String,

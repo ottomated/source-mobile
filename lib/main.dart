@@ -494,12 +494,22 @@ class _HomePageState extends State<HomePage>
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        SettingsPage(classes: _results.classes),
+                    builder: (context) => SettingsPage(
+                          classes: _results.classes,
+                          firebaseToken: _firebaseToken,
+                        ),
                   ),
                 );
                 if (globals.cameBackFromSettingsRefresh) {
                   globals.cameBackFromSettingsRefresh = false;
+                  var prefs = await SharedPreferences.getInstance();
+                  prefs.setBool('notify_enabled', false);
+                  var keys = prefs.getKeys();
+                  for (var k in keys) {
+                    if(k.startsWith('notify_') && k != 'notify_enabled') {
+                      await prefs.remove(k);
+                    }
+                  }
                   _doRefresh();
                 }
               },
