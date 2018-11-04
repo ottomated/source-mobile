@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "817936911737",
+    "firebase_url": "https://source-mobile-sps.firebaseio.com",
+    "project_id": "source-mobile-sps",
+    "storage_bucket": "source-mobile-sps.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:817936911737:android:7beb2d0422e17cde",
+        "android_client_info": {
+          "package_name": "net.ottomated.sourcemobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "817936911737-cln20r0ukckpl4a7s6qc1486amo41n7g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCT9PkEwJ6HEFH-6ZyizyvrmaObM4jhngE"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

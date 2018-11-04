@@ -103,13 +103,13 @@ class SettingsPageState extends State<SettingsPage> {
                       actions: <Widget>[
                         FlatButton(
                           child: Text('Cancel'),
-                          onPressed: () {
+                          onPressed: _working ? null : () {
                             Navigator.pop(context);
                           },
                         ),
                         FlatButton(
                           child: Text('Accept'),
-                          onPressed: () async {
+                          onPressed: _working ? null : () async {
                             setState(() {
                               _working = true;
                             });
