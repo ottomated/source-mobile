@@ -48,6 +48,11 @@ SourceClass _$SourceClassFromJson(Map<String, dynamic> json) {
           ?.map((e) => e == null
               ? null
               : SourceAssignment.fromJson(e as Map<String, dynamic>))
+          ?.toList(),
+      categories: (json['categories'] as List)
+          ?.map((e) => e == null
+              ? null
+              : SourceCategory.fromJson(e as Map<String, dynamic>))
           ?.toList())
     ..gpaWeight = (json['gpaWeight'] as num)?.toDouble();
 }
@@ -61,7 +66,8 @@ Map<String, dynamic> _$SourceClassToJson(SourceClass instance) =>
       'roomNumber': instance.roomNumber,
       'gpaWeight': instance.gpaWeight,
       'overallGrades': instance.overallGrades,
-      'assignments': instance.assignments
+      'assignments': instance.assignments,
+      'categories': instance.categories
     };
 
 SourceAssignment _$SourceAssignmentFromJson(Map<String, dynamic> json) {
@@ -117,4 +123,18 @@ Map<String, dynamic> _$SourceClassGradeToJson(SourceClassGrade instance) =>
       'letter': instance.letter,
       'percent': instance.percent,
       'color': instance.color
+    };
+
+SourceCategory _$SourceCategoryFromJson(Map<String, dynamic> json) {
+  return SourceCategory(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      weight: (json['weight'] as num)?.toDouble());
+}
+
+Map<String, dynamic> _$SourceCategoryToJson(SourceCategory instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'weight': instance.weight
     };

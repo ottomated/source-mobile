@@ -46,6 +46,7 @@ class SourceClass {
 
   Map<String, SourceClassGrade> overallGrades;
   List<SourceAssignment> assignments;
+  List<SourceCategory> categories;
 
   String get classNameCased {
     Map<String, String> replaceWords = {'Wrld': 'World'};
@@ -80,7 +81,8 @@ class SourceClass {
       this.teacherEmail,
       this.roomNumber,
       this.overallGrades,
-      this.assignments}) {
+      this.assignments,
+      this.categories}) {
     Iterable<String> nameWords = this.className.split(' ');
     if (nameWords.contains('AP')) {
       this.gpaWeight = 0.05;
@@ -178,7 +180,15 @@ class SourceAssignmentGrade {
   }
 
   String get fancyScore {
-    if (!this.graded) return '--/${this.maxScore}';
+    if (!this.graded) {
+      String r = '--/';
+      if (this.maxScore.floor() == this.maxScore) {
+        r += this.maxScore.floor().toString();
+      } else {
+        r += this.maxScore.toString();
+      }
+      return r;
+    }
     String r = '';
     if (this.score.floor() == this.score) {
       r += this.score.floor().toString();
@@ -262,6 +272,22 @@ class CookieStore {
         .map((key) => '$key=${this.cookies[key]}')
         .join('; ');
   }
+}
+
+@JsonSerializable()
+class SourceCategory {
+  String id;
+  String name;
+  double weight;
+
+  SourceCategory({this.id, this.name, this.weight});
+  @override
+  String toString() {
+    return 'SourceCategory[${name} (${id}: ${weight}%]';
+  }
+  factory SourceCategory.fromJson(Map<String, dynamic> json) =>
+      _$SourceCategoryFromJson(json);
+  Map<String, dynamic> toJson() => _$SourceCategoryToJson(this);
 }
 
 class Source {
@@ -415,7 +441,8 @@ class Source {
       res.studentID = '1234567';
       res.name = ['Test', 'Student'];
       // Download photo
-      http.Response response = await http.get('https://picsum.photos/200/?random');
+      http.Response response =
+          await http.get('https://picsum.photos/200/?random');
       var bytes = response.bodyBytes;
       String dir = (await getApplicationDocumentsDirectory()).path;
       File file = File('$dir/${res.name[0]}.jpeg');
@@ -455,7 +482,8 @@ class Source {
               name: 'Ungraded Assignment 3',
             ),
           ],
-        ),SourceClass(
+        ),
+        SourceClass(
           className: 'HONORS CLASS 1H',
           period: '2',
           teacherName: 'Teacher Name',
@@ -501,109 +529,105 @@ class Source {
       ];
       return res;
     }
-      SourceResults res = SourceResults();
-      http.Request req;
-      http.StreamedResponse response;
-      _cookies = CookieStore();
-      // Initialize session
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/public/'))
-        ..followRedirects = false;
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Initialize session
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Get home
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Parse out tokens
-      String body = await response.stream.transform(utf8.decoder).join();
-      RegExp pstokenRgx =
-          RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
-      RegExp contextDataRgx = RegExp(
-          r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
-      String pstoken = pstokenRgx.firstMatch(body).group(1);
-      String contextData = contextDataRgx.firstMatch(body).group(1);
-      // Login request
-      req = http.Request(
-          'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({
-        'Cookie': _cookies.toString(),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      });
-      req.body = generateLoginBody(username, password, pstoken, contextData);
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Get page html
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      if (response.statusCode != 200) {
-        return null;
-      }
-      body = await response.stream.transform(utf8.decoder).join();
-      res.html = body;
+    SourceResults res = SourceResults();
+    http.Request req;
+    http.StreamedResponse response;
+    _cookies = CookieStore();
+    // Initialize session
+    req =
+        http.Request('GET', Uri.parse('https://ps.seattleschools.org/public/'))
+          ..followRedirects = false;
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Initialize session
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Get home
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Parse out tokens
+    String body = await response.stream.transform(utf8.decoder).join();
+    RegExp pstokenRgx =
+        RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
+    RegExp contextDataRgx = RegExp(
+        r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
+    String pstoken = pstokenRgx.firstMatch(body).group(1);
+    String contextData = contextDataRgx.firstMatch(body).group(1);
+    // Login request
+    req = http.Request(
+        'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({
+      'Cookie': _cookies.toString(),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    });
+    req.body = generateLoginBody(username, password, pstoken, contextData);
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Get page html
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    if (response.statusCode != 200) {
+      return null;
+    }
+    body = await response.stream.transform(utf8.decoder).join();
+    res.html = body;
 
-      // Get stuff from home
-      res.studentID =
-          RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
-      res.stateID =
-          RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
-      res.grade =
-          RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
+    // Get stuff from home
+    res.studentID =
+        RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+            .firstMatch(body)
+            .group(1);
+    res.stateID = RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+        .firstMatch(body)
+        .group(1);
+    res.grade = RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+        .firstMatch(body)
+        .group(1);
 
-      // Download photo html page
-      req = http.Request(
-          'GET',
-          Uri.parse(
-              'https://ps.seattleschools.org/guardian/student_photo.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      body = await response.stream.transform(utf8.decoder).join();
-      // Extract photo url
-      RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
-      String studentPhotoUrl = 'https://ps.seattleschools.org' +
-          studentPhotoRgx.firstMatch(body).group(1);
+    // Download photo html page
+    req = http.Request('GET',
+        Uri.parse('https://ps.seattleschools.org/guardian/student_photo.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    body = await response.stream.transform(utf8.decoder).join();
+    // Extract photo url
+    RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
+    String studentPhotoUrl = 'https://ps.seattleschools.org' +
+        studentPhotoRgx.firstMatch(body).group(1);
 
-      // Extract full name
-      RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
-      String name = nameRgx.firstMatch(body).group(1);
-      res.name.addAll(name.split(', ')[1].split(' '));
-      res.name.add(name.split(', ')[0]);
-      // Download photo
-      req = http.Request('GET', Uri.parse(studentPhotoUrl))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      var bytes = await response.stream.toBytes();
-      String dir = (await getApplicationDocumentsDirectory()).path;
-      File file = File('$dir/${res.name[0]}.jpeg');
-      res.imageFilePath = '$dir/${res.name[0]}.jpeg';
-      await file.writeAsBytes(bytes);
+    // Extract full name
+    RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
+    String name = nameRgx.firstMatch(body).group(1);
+    res.name.addAll(name.split(', ')[1].split(' '));
+    res.name.add(name.split(', ')[0]);
+    // Download photo
+    req = http.Request('GET', Uri.parse(studentPhotoUrl))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    var bytes = await response.stream.toBytes();
+    String dir = (await getApplicationDocumentsDirectory()).path;
+    File file = File('$dir/${res.name[0]}.jpeg');
+    res.imageFilePath = '$dir/${res.name[0]}.jpeg';
+    await file.writeAsBytes(bytes);
 
-      // Parse HTMLs
-      await parseResHTML(res);
-      return res;
+    // Parse HTMLs
+    await parseResHTML(res);
+    return res;
   }
 }

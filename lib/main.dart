@@ -455,7 +455,7 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             bottom: ListTile(
-              title: Text(ass.grade.fancyScore),
+              title: Text('${ass.grade.fancyScore} ${ass.category}'),
               trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : ''),
             ),
           );
