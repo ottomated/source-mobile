@@ -383,8 +383,13 @@ class Source {
       String id = n[1].split(')')[0];
       String name = n[0];
 
-      double weight = double.parse(row.children[1].text.split('%')[0]);
-      
+      String w = row.children[1].text.split('%')[0];
+      double weight;
+      if (w == '-') {
+        weight = 0;
+      } else {
+        weight = double.parse(row.children[1].text.split('%')[0]);
+      }
       cats.add(SourceCategory(
         id: id,
         name: name,

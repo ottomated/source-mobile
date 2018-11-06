@@ -47,7 +47,7 @@ class LoginPageState extends State<LoginPage> {
                   barrierDismissible: true,
                   builder: (context) {
                     return AlertDialog(
-                      title: Text('Help'),
+                      title: Text('Information'),
                       content: Text(
                           'Please enter your source credentials. Unless you enable push notifications, they will only be stored on your device.'),
                       actions: <Widget>[

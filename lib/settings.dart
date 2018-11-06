@@ -103,49 +103,105 @@ class SettingsPageState extends State<SettingsPage> {
                       actions: <Widget>[
                         FlatButton(
                           child: Text('Cancel'),
-                          onPressed: _working ? null : () {
-                            Navigator.pop(context);
-                          },
+                          onPressed: _working
+                              ? null
+                              : () {
+                                  Navigator.pop(context);
+                                },
                         ),
                         FlatButton(
                           child: Text('Accept'),
-                          onPressed: _working ? null : () async {
-                            setState(() {
-                              _working = true;
-                            });
-                            http.Response r = await http.post(
-                              'https://ottomated.net/source/register',
-                              body: json.encode(
-                                {
-                                  'token': widget.firebaseToken,
-                                  'sUsername': globals.username,
-                                  'sPassword': globals.password,
-                                  'classes': Map.fromEntries(
-                                    widget.classes.map(
-                                        (c) => MapEntry(c.className, true)),
-                                  ),
+                          onPressed: _working
+                              ? null
+                              : () async {
+                                  setState(() {
+                                    _working = true;
+                                  });
+                                  http.Response r;
+                                  try {
+                                    r = await http.post(
+                                      'https://ottomated.net/source/register',
+                                      body: json.encode(
+                                        {
+                                          'token': widget.firebaseToken,
+                                          'sUsername': globals.username,
+                                          'sPassword': globals.password,
+                                          'classes': Map.fromEntries(
+                                            widget.classes.map((c) =>
+                                                MapEntry(c.className, true)),
+                                          ),
+                                        },
+                                      ),
+                                      headers: {
+                                        'content-type': 'application/json'
+                                      },
+                                    );
+                                  } catch (e) {
+                                    setState(() {
+                                      _working = false;
+                                    });
+
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          title: Text('Error'),
+                                          content: Text(e.toString()),
+                                          actions: <Widget>[
+                                            FlatButton(
+                                              child: Text('Okay'),
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                              },
+                                            )
+                                          ],
+                                        );
+                                      },
+                                    );
+                                    key.currentState.showSnackBar(
+                                      SnackBar(
+                                        content: Text('Failed: ${e}'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setState(() {
+                                    _working = false;
+                                  });
+                                  if (r.statusCode != 200) {
+                                    Navigator.pop(context);
+
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          title: Text('Error'),
+                                          content: Text('Invalid request'),
+                                          actions: <Widget>[
+                                            FlatButton(
+                                              child: Text('Okay'),
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                              },
+                                            )
+                                          ],
+                                        );
+                                      },
+                                    );
+                                    key.currentState.showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('Failed: ${r.statusCode}'),
+                                      ),
+                                    );
+                                  }
+                                  await _prefs.setBool(
+                                      'notify_enabled', newVal);
+                                  setState(() {
+                                    _notificationsEnabled = newVal;
+                                  });
+                                  Navigator.pop(context);
                                 },
-                              ),
-                              headers: {'content-type': 'application/json'},
-                            );
-                            setState(() {
-                              _working = false;
-                            });
-                            print(r.statusCode);
-                            if (r.statusCode != 200) {
-                              Navigator.pop(context);
-                              key.currentState.showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed: ${r.statusCode}'),
-                                ),
-                              );
-                            }
-                            await _prefs.setBool('notify_enabled', newVal);
-                            setState(() {
-                              _notificationsEnabled = newVal;
-                            });
-                            Navigator.pop(context);
-                          },
                         ),
                       ],
                     );
@@ -155,20 +211,65 @@ class SettingsPageState extends State<SettingsPage> {
                 setState(() {
                   _working = true;
                 });
-                http.Response r = await http.post(
-                  'https://ottomated.net/source/deregister',
-                  body: json.encode(
-                    {
-                      'token': widget.firebaseToken
+                http.Response r;
+                try {
+                  r = await http.post(
+                    'https://ottomated.net/source/deregister',
+                    body: json.encode(
+                      {'token': widget.firebaseToken},
+                    ),
+                    headers: {'content-type': 'application/json'},
+                  );
+                } catch (e) {
+                  setState(() {
+                    _working = true;
+                  });
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: Text('Error'),
+                        content: Text(e.toString()),
+                        actions: <Widget>[
+                          FlatButton(
+                            child: Text('Okay'),
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                          )
+                        ],
+                      );
                     },
-                  ),
-                  headers: {'content-type': 'application/json'},
-                );
+                  );
+                  key.currentState.showSnackBar(
+                    SnackBar(
+                      content: Text('Failed: ${e}'),
+                    ),
+                  );
+                  return;
+                }
                 print(r.statusCode);
                 setState(() {
                   _working = false;
                 });
                 if (r.statusCode != 200) {
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: Text('Error'),
+                        content: Text('Invalid request'),
+                        actions: <Widget>[
+                          FlatButton(
+                            child: Text('Okay'),
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                          )
+                        ],
+                      );
+                    },
+                  );
                   key.currentState.showSnackBar(
                     SnackBar(
                       content: Text('Failed: ${r.statusCode}'),
@@ -188,15 +289,15 @@ class SettingsPageState extends State<SettingsPage> {
                 'Classes (${_localPrefs.values.where((k) => k).length}/${widget.classes.length} enabled)'),
             children: widget.classes.map((c) {
               String k = 'notify_' + c.className;
-              return CheckboxListTile(
-                dense: true,
-                title: Text(c.classNameCased),
-                onChanged: _notificationsEnabled
-                    ? (newVal) async {
-                        setState(() {
-                          _working = true;
-                        });
-                        http.Response r = await http.post(
+
+              var changeFunc = _notificationsEnabled
+                  ? (newVal) async {
+                      setState(() {
+                        _working = true;
+                      });
+                      http.Response r;
+                      try {
+                        r = await http.post(
                           'https://ottomated.net/source/prefs',
                           body: json.encode(
                             {
@@ -206,25 +307,78 @@ class SettingsPageState extends State<SettingsPage> {
                           ),
                           headers: {'content-type': 'application/json'},
                         );
-                        print(r.statusCode);
+                      } catch (e) {
                         setState(() {
                           _working = false;
                         });
-                        if (r.statusCode != 200) {
-                          key.currentState.showSnackBar(
-                            SnackBar(
-                              content: Text('Failed: ${r.statusCode}'),
-                            ),
-                          );
-                        }
-                        await _prefs.setBool(k, newVal);
-                        setState(() {
-                          _localPrefs[k] = newVal;
-                        });
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: Text('Error'),
+                              content: Text(e.toString()),
+                              actions: <Widget>[
+                                FlatButton(
+                                  child: Text('Okay'),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                )
+                              ],
+                            );
+                          },
+                        );
+                        key.currentState.showSnackBar(
+                          SnackBar(
+                            content: Text('Failed: ${e}'),
+                          ),
+                        );
+                        return;
                       }
-                    : null,
-                value: _localPrefs[k],
-                activeColor: Theme.of(context).accentColor,
+                      setState(() {
+                        _working = false;
+                      });
+                      if (r.statusCode != 200) {
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: Text('Error'),
+                              content: Text('Invalid request'),
+                              actions: <Widget>[
+                                FlatButton(
+                                  child: Text('Okay'),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                )
+                              ],
+                            );
+                          },
+                        );
+                        key.currentState.showSnackBar(
+                          SnackBar(
+                            content: Text('Failed: ${r.statusCode}'),
+                          ),
+                        );
+                      }
+                      await _prefs.setBool(k, newVal);
+                      setState(() {
+                        _localPrefs[k] = newVal;
+                      });
+                    }
+                  : null;
+
+              return InkWell(
+                child: ListTile(
+                  dense: true,
+                  title: Text(c.classNameCased),
+                  trailing: Checkbox(
+                    onChanged: changeFunc,
+                    value: _localPrefs[k],
+                    activeColor: Theme.of(context).accentColor,
+                  ),
+                ),
               );
             }).toList(),
           )
