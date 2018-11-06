@@ -20,7 +20,7 @@ class SettingsPage extends StatefulWidget {
 
 class SettingsPageState extends State<SettingsPage> {
   SharedPreferences _prefs;
-  Map<String, bool> _localPrefs = {};
+  Map<String, dynamic> _localPrefs = {};
   bool _notificationsEnabled = false;
   GlobalKey<ScaffoldState> key;
 
@@ -29,9 +29,16 @@ class SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+
     for (var c in widget.classes) {
-      String k = 'notify_' + c.className;
-      _localPrefs[k] = true;
+      if (c.categories.length == 0)
+        _localPrefs[c.className] = true;
+      else
+        _localPrefs[c.className] = Map.fromIterable(
+          c.categories,
+          key: (cat) => cat.id,
+          value: (cat) => true,
+        );
     }
     _init();
   }
@@ -44,19 +51,166 @@ class SettingsPageState extends State<SettingsPage> {
     } else {
       await _prefs.setBool('notify_enabled', false);
     }
-    for (var c in widget.classes) {
-      String k = 'notify_' + c.className;
-      if (!keys.contains(k)) {
-        await _prefs.setBool(k, true);
-        setState(() {
-          _localPrefs[k] = true;
-        });
-      } else {
-        setState(() {
-          _localPrefs[k] = _prefs.getBool(k);
-        });
-      }
+
+    if (keys.contains('notify_class_settings')) {
+      _localPrefs =
+          json.decode(await _prefs.getString('notify_class_settings'));
+    } else {
+      await _prefs.setString('notify_class_settings', json.encode(_localPrefs));
     }
+  }
+
+  Future<bool> _makeRequest(String url, Map body) async {
+    setState(() {
+      _working = true;
+    });
+    http.Response r;
+    try {
+      r = await http.post(
+        url,
+        body: json.encode(body),
+      );
+    } catch (e) {
+      setState(() {
+        _working = false;
+      });
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text('Error'),
+            content: Text(e.toString()),
+            actions: <Widget>[
+              FlatButton(
+                child: Text('Okay'),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              )
+            ],
+          );
+        },
+      );
+      return false;
+    }
+    setState(() {
+      _working = false;
+    });
+    if (r.statusCode != 200) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text('Error'),
+            content: Text('Invalid request'),
+            actions: <Widget>[
+              FlatButton(
+                child: Text('Okay'),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              )
+            ],
+          );
+        },
+      );
+      return false;
+    }
+    return true;
+  }
+
+  List<Widget> _topOfSettings() {
+    return [
+      ListTile(
+        title: Text('Logged in as ${globals.username}'),
+        subtitle: Text('Change account'),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LoginPage(),
+            ),
+          );
+          if (globals.cameBackFromSettingsRefresh2) {
+            globals.cameBackFromSettingsRefresh2 = false;
+            globals.cameBackFromSettingsRefresh = true;
+            Navigator.of(context).pop();
+          }
+        },
+        trailing: Icon(Icons.person_add),
+      ),
+      Divider(),
+      SwitchListTile(
+        title: Text('Notifications'),
+        subtitle: Text(
+            'Push notifications are ${_notificationsEnabled ? 'enabled' : 'disabled'}'),
+        value: _notificationsEnabled,
+        onChanged: (newVal) async {
+          if (newVal) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) {
+                return AlertDialog(
+                  title: Text('Push Notifcations'),
+                  content: Text(
+                      'By enabling push notifications, you agree that your stored credentials will be uploaded, encrypted and stored. This is necessary in order to send you notifications. If you wish to disable this at any point, you can disable this switch.'),
+                  actions: <Widget>[
+                    FlatButton(
+                      child: Text('Cancel'),
+                      onPressed: _working
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                            },
+                    ),
+                    FlatButton(
+                      child: Text('Accept'),
+                      onPressed: _working
+                          ? null
+                          : () async {
+                              bool success = await _makeRequest(
+                                'https://ottomated.net/source/register',
+                                {
+                                  'token': widget.firebaseToken,
+                                  'sUsername': globals.username,
+                                  'sPassword': globals.password,
+                                  'classes': Map.fromEntries(
+                                    widget.classes.map(
+                                        (c) => MapEntry(c.className, true)),
+                                  ),
+                                },
+                              );
+                              Navigator.pop(context);
+                              if (success) {
+                                await _prefs.setBool('notify_enabled', true);
+                                setState(() {
+                                  _notificationsEnabled = true;
+                                });
+                              }
+                            },
+                    ),
+                  ],
+                );
+              },
+            );
+          } else {
+            bool success = await _makeRequest(
+              'https://ottomated.net/source/deregister',
+              {'token': widget.firebaseToken},
+            );
+            if (success) {
+              await _prefs.setBool('notify_enabled', false);
+              setState(() {
+                _notificationsEnabled = false;
+              });
+            }
+          }
+        },
+        activeColor: Theme.of(context).accentColor,
+      ),
+    ];
   }
 
   @override
@@ -65,324 +219,110 @@ class SettingsPageState extends State<SettingsPage> {
 
     Widget page = Center(
       child: ListView(
-        children: [
-          ListTile(
-            title: Text('Logged in as ${globals.username}'),
-            subtitle: Text('Change account'),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => LoginPage(),
-                ),
-              );
-              if (globals.cameBackFromSettingsRefresh2) {
-                globals.cameBackFromSettingsRefresh2 = false;
-                globals.cameBackFromSettingsRefresh = true;
-                Navigator.of(context).pop();
-              }
-            },
-            trailing: Icon(Icons.person_add),
-          ),
-          Divider(),
-          SwitchListTile(
-            title: Text('Notifications'),
-            subtitle: Text(
-                'Push notifications are ${_notificationsEnabled ? 'enabled' : 'disabled'}'),
-            value: _notificationsEnabled,
-            onChanged: (newVal) async {
-              if (newVal) {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) {
-                    return AlertDialog(
-                      title: Text('Push Notifcations'),
-                      content: Text(
-                          'By enabling push notifications, you agree that your stored credentials will be uploaded, encrypted and stored. This is necessary in order to send you notifications. If you wish to disable this at any point, you can disable this switch.'),
-                      actions: <Widget>[
-                        FlatButton(
-                          child: Text('Cancel'),
-                          onPressed: _working
-                              ? null
-                              : () {
-                                  Navigator.pop(context);
-                                },
-                        ),
-                        FlatButton(
-                          child: Text('Accept'),
-                          onPressed: _working
-                              ? null
-                              : () async {
-                                  setState(() {
-                                    _working = true;
-                                  });
-                                  http.Response r;
-                                  try {
-                                    r = await http.post(
-                                      'https://ottomated.net/source/register',
-                                      body: json.encode(
-                                        {
-                                          'token': widget.firebaseToken,
-                                          'sUsername': globals.username,
-                                          'sPassword': globals.password,
-                                          'classes': Map.fromEntries(
-                                            widget.classes.map((c) =>
-                                                MapEntry(c.className, true)),
-                                          ),
-                                        },
-                                      ),
-                                      headers: {
-                                        'content-type': 'application/json'
-                                      },
-                                    );
-                                  } catch (e) {
-                                    setState(() {
-                                      _working = false;
-                                    });
-
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) {
-                                        return AlertDialog(
-                                          title: Text('Error'),
-                                          content: Text(e.toString()),
-                                          actions: <Widget>[
-                                            FlatButton(
-                                              child: Text('Okay'),
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                              },
-                                            )
-                                          ],
-                                        );
-                                      },
-                                    );
-                                    key.currentState.showSnackBar(
-                                      SnackBar(
-                                        content: Text('Failed: ${e}'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  setState(() {
-                                    _working = false;
-                                  });
-                                  if (r.statusCode != 200) {
-                                    Navigator.pop(context);
-
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) {
-                                        return AlertDialog(
-                                          title: Text('Error'),
-                                          content: Text('Invalid request'),
-                                          actions: <Widget>[
-                                            FlatButton(
-                                              child: Text('Okay'),
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                              },
-                                            )
-                                          ],
-                                        );
-                                      },
-                                    );
-                                    key.currentState.showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text('Failed: ${r.statusCode}'),
-                                      ),
-                                    );
-                                  }
-                                  await _prefs.setBool(
-                                      'notify_enabled', newVal);
-                                  setState(() {
-                                    _notificationsEnabled = newVal;
-                                  });
-                                  Navigator.pop(context);
-                                },
-                        ),
-                      ],
-                    );
-                  },
-                );
-              } else {
-                setState(() {
-                  _working = true;
-                });
-                http.Response r;
-                try {
-                  r = await http.post(
-                    'https://ottomated.net/source/deregister',
-                    body: json.encode(
-                      {'token': widget.firebaseToken},
-                    ),
-                    headers: {'content-type': 'application/json'},
-                  );
-                } catch (e) {
-                  setState(() {
-                    _working = true;
-                  });
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: Text('Error'),
-                        content: Text(e.toString()),
-                        actions: <Widget>[
-                          FlatButton(
-                            child: Text('Okay'),
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                          )
-                        ],
-                      );
-                    },
-                  );
-                  key.currentState.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed: ${e}'),
-                    ),
-                  );
-                  return;
-                }
-                print(r.statusCode);
-                setState(() {
-                  _working = false;
-                });
-                if (r.statusCode != 200) {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: Text('Error'),
-                        content: Text('Invalid request'),
-                        actions: <Widget>[
-                          FlatButton(
-                            child: Text('Okay'),
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                          )
-                        ],
-                      );
-                    },
-                  );
-                  key.currentState.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed: ${r.statusCode}'),
-                    ),
-                  );
-                }
-                await _prefs.setBool('notify_enabled', newVal);
-                setState(() {
-                  _notificationsEnabled = newVal;
-                });
-              }
-            },
-            activeColor: Theme.of(context).accentColor,
-          ),
-          ExpansionTile(
-            title: Text(
-                'Classes (${_localPrefs.values.where((k) => k).length}/${widget.classes.length} enabled)'),
-            children: widget.classes.map((c) {
-              String k = 'notify_' + c.className;
-
-              var changeFunc = _notificationsEnabled
-                  ? (newVal) async {
-                      setState(() {
-                        _working = true;
-                      });
-                      http.Response r;
-                      try {
-                        r = await http.post(
-                          'https://ottomated.net/source/prefs',
-                          body: json.encode(
-                            {
-                              'token': widget.firebaseToken,
-                              'updates': {c.className: newVal}
-                            },
-                          ),
-                          headers: {'content-type': 'application/json'},
-                        );
-                      } catch (e) {
-                        setState(() {
-                          _working = false;
-                        });
-                        showDialog(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: Text('Error'),
-                              content: Text(e.toString()),
-                              actions: <Widget>[
-                                FlatButton(
-                                  child: Text('Okay'),
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                )
-                              ],
-                            );
-                          },
-                        );
-                        key.currentState.showSnackBar(
-                          SnackBar(
-                            content: Text('Failed: ${e}'),
-                          ),
-                        );
-                        return;
-                      }
-                      setState(() {
-                        _working = false;
-                      });
-                      if (r.statusCode != 200) {
-                        showDialog(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: Text('Error'),
-                              content: Text('Invalid request'),
-                              actions: <Widget>[
-                                FlatButton(
-                                  child: Text('Okay'),
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                )
-                              ],
-                            );
-                          },
-                        );
-                        key.currentState.showSnackBar(
-                          SnackBar(
-                            content: Text('Failed: ${r.statusCode}'),
-                          ),
-                        );
-                      }
-                      await _prefs.setBool(k, newVal);
-                      setState(() {
-                        _localPrefs[k] = newVal;
-                      });
-                    }
-                  : null;
-
-              return InkWell(
-                child: ListTile(
-                  dense: true,
+        children: List.from(_topOfSettings())
+          ..addAll(
+            widget.classes.map((c) {
+              if (c.categories.length > 0) {
+                return ExpansionTile(
                   title: Text(c.classNameCased),
-                  trailing: Checkbox(
-                    onChanged: changeFunc,
-                    value: _localPrefs[k],
+                  children: c.categories.map((cat) {
+                    return ListTile(
+                      title: Text(cat.name),
+                      dense: true,
+                      leading: Padding(
+                        padding: EdgeInsets.only(left: 30.0),
+                        child: Checkbox(
+                          value: _localPrefs[c.className][cat.id],
+                          onChanged: _notificationsEnabled
+                              ? (newVal) async {
+                                  Map newPrefs = json.decode(json.encode(_localPrefs));
+                                  newPrefs[c.className][cat.id] = newVal;
+
+                                  bool success = await _makeRequest(
+                                    'https://ottomated.net/source/prefs',
+                                    {
+                                      'token': widget.firebaseToken,
+                                      'updates': json.encode(newPrefs)
+                                    },
+                                  );
+                                  if (success) {
+                                    _localPrefs = Map.from(newPrefs);
+                                    await _prefs.setString(
+                                        'notify_class_settings',
+                                        json.encode(_localPrefs));
+                                  }
+                                }
+                              : null,
+                          activeColor: Theme.of(context).accentColor,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  leading: Checkbox(
+                    onChanged: _notificationsEnabled
+                        ? (_) async {
+                            Map newPrefs = json.decode(json.encode(_localPrefs));
+                            bool toEnable = false;
+                            if ((_localPrefs[c.className] as Map)
+                                .values
+                                .any((_) => !_)) {
+                              toEnable = true;
+                            }
+
+                            for (SourceCategory cat in c.categories) {
+                              newPrefs[c.className][cat.id] = toEnable;
+                            }
+                            bool success = await _makeRequest(
+                              'https://ottomated.net/source/prefs',
+                              {
+                                'token': widget.firebaseToken,
+                                'updates': json.encode(newPrefs)
+                              },
+                            );
+                            if (success) {
+                              _localPrefs = Map.from(newPrefs);
+                              await _prefs.setString('notify_class_settings',
+                                  json.encode(_localPrefs));
+                            }
+                          }
+                        : null,
+                    value: () {
+                      int numberEnabled = _localPrefs[c.className]
+                          .values
+                          .where((_) { return _ as bool;})
+                          .length;
+                      if (numberEnabled == 0) {
+                        return false;
+                      } else if (numberEnabled ==
+                          _localPrefs[c.className].values.length) {
+                        return true;
+                      } else {
+                        return null;
+                      }
+                    }(),
+                    tristate: true,
                     activeColor: Theme.of(context).accentColor,
                   ),
-                ),
-              );
-            }).toList(),
-          )
-        ],
+                );
+              } else {
+                return InkWell(
+                  onTap: () {
+                    // TODO: Enable class?
+                  },
+                  child: ListTile(
+                    title: Text(c.classNameCased),
+                    leading: Checkbox(
+                      onChanged: (newVal) {
+                        // TODO: Same as above
+                      },
+                      value: true, // TODO: Class enabled
+                      activeColor: Theme.of(context).accentColor,
+                    ),
+                  ),
+                );
+              }
+            }),
+          ),
       ),
     );
     return Scaffold(

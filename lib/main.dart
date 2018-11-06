@@ -49,7 +49,7 @@ class SourceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     var loggedIn = _checkLoggedIn();
     return MaterialApp(
-      title: 'the source',
+      title: 'The Source',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         accentColor: Colors.blueAccent,
@@ -503,13 +503,11 @@ class _HomePageState extends State<HomePage>
                 if (globals.cameBackFromSettingsRefresh) {
                   globals.cameBackFromSettingsRefresh = false;
                   var prefs = await SharedPreferences.getInstance();
-                  prefs.setBool('notify_enabled', false);
+                  await prefs.setBool('notify_enabled', false);
                   var keys = prefs.getKeys();
-                  for (var k in keys) {
-                    if(k.startsWith('notify_') && k != 'notify_enabled') {
-                      await prefs.remove(k);
-                    }
-                  }
+                  if (keys.contains('notify_class_settings'))
+                    await prefs.remove('notify_class_settings');
+
                   _doRefresh();
                 }
               },
