@@ -114,7 +114,7 @@ class SourceClass {
 @JsonSerializable()
 class SourceAssignment {
   DateTime dueDate;
-  String category;
+  SourceCategory category;
   String name;
   List<String> flags;
   SourceAssignmentGrade grade;
@@ -126,7 +126,7 @@ class SourceAssignment {
   Map<String, dynamic> toJson() => _$SourceAssignmentToJson(this);
   @override
   String toString() {
-    return 'SourceAssignment[$name, $category, due $dueDate]: $grade';
+    return 'SourceAssignment[$name, ${category.id}, due $dueDate]: $grade';
   }
 }
 
@@ -285,6 +285,7 @@ class SourceCategory {
   String toString() {
     return 'SourceCategory[${name} (${id}: ${weight}%]';
   }
+
   factory SourceCategory.fromJson(Map<String, dynamic> json) =>
       _$SourceCategoryFromJson(json);
   Map<String, dynamic> toJson() => _$SourceCategoryToJson(this);
@@ -319,8 +320,9 @@ class Source {
           box.children.last.attributes['href'].split('mailto:')[1].trim();
 
       Map<String, SourceClassGrade> grades = {};
-      // Assignments
+
       List<SourceAssignment> assignments = [];
+      List<SourceCategory> categories = [];
 
       int i = 0;
       for (Element gradeEl in row.querySelectorAll('.colorMyGrade')) {
@@ -329,10 +331,13 @@ class Source {
           grades[overallNames[i]] = (SourceClassGrade(
               double.parse(r.firstMatch(gradeEl.text).group(0))));
           if (overallNames[i].startsWith('S')) {
-            List<SourceAssignment> newAsses = await parseResClassPage(
+            Tuple2 r = await parseResClassPage(
               gradeEl.querySelector('a').attributes['href'],
             );
+            List<SourceAssignment> newAsses = r.item1;
+            List<SourceCategory> newCats = r.item2;
             assignments.addAll(newAsses);
+            categories.addAll(newCats);
           }
         }
         i++;
@@ -345,14 +350,16 @@ class Source {
           teacherName: teacherName,
           teacherEmail: teacherEmail,
           overallGrades: grades,
-          assignments: assignments));
+          assignments: assignments,
+          categories: categories));
       // Period
       // Teacher + class name
       // Grades
     }
   }
 
-  Future<List<SourceAssignment>> parseResClassPage(String url) async {
+  Future<Tuple2<List<SourceAssignment>, List<SourceCategory>>>
+      parseResClassPage(String url) async {
     http.Request req;
     http.StreamedResponse response;
     String body;
@@ -365,11 +372,31 @@ class Source {
     _cookies.setCookies(response.headers['set-cookie']);
     body = await response.stream.transform(utf8.decoder).join();
     Document document = parse(body);
-    //print(body);
+
+    List<Element> catElements =
+        document.querySelectorAll('#sps-assignment-categories > tbody > tr');
+    List<SourceCategory> cats = [];
+
+    for (var row in catElements) {
+      List<String> n = row.children[0].text.split(' (');
+      if (n.length != 2) continue;
+      String id = n[1].split(')')[0];
+      String name = n[0];
+
+      double weight = double.parse(row.children[1].text.split('%')[0]);
+      
+      cats.add(SourceCategory(
+        id: id,
+        name: name,
+        weight: weight,
+      ));
+    }
+
     List<Element> assElements = document
         .querySelectorAll('.box-round > table[align="center"] > tbody > tr');
 
     List<SourceAssignment> asses = [];
+
     for (var row in assElements) {
       if (row.children[0].text == 'No assignments found.') continue;
       List<String> date = row.children[0].text.split('/');
@@ -389,11 +416,14 @@ class Source {
               int.parse(date[2]), int.parse(date[1]), int.parse(date[0])),
           grade: SourceAssignmentGrade(
               double.parse(grade[0]), double.parse(grade[1]), graded),
-          category: category,
+          category: cats.firstWhere(
+            (c) => c.id == category,
+            orElse: () => SourceCategory(id: '', name: '', weight: 0),
+          ),
           name: name);
       asses.add(ass);
     }
-    return asses;
+    return Tuple2(asses, cats);
   }
 
   String generateLoginBody(
@@ -464,19 +494,22 @@ class Source {
           },
           assignments: [
             SourceAssignment(
-              category: 'HW',
+              category:
+                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(10.0, 10.0, true),
               name: 'Assignment 1',
             ),
             SourceAssignment(
-              category: 'HW',
+              category:
+                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(87.0, 100.0, true),
               name: 'Assignment 2',
             ),
             SourceAssignment(
-              category: 'HW',
+              category:
+                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(0.0, 10.0, false),
               name: 'Ungraded Assignment 3',
@@ -495,31 +528,36 @@ class Source {
           },
           assignments: [
             SourceAssignment(
-              category: 'TEST',
+              category: SourceCategory(
+                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(100.0, 100.0, true),
               name: 'Assignment 1',
             ),
             SourceAssignment(
-              category: 'TEST',
+              category: SourceCategory(
+                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(80.0, 100.0, true),
               name: 'Assignment 2',
             ),
             SourceAssignment(
-              category: 'TEST',
+              category: SourceCategory(
+                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(70.0, 100.0, true),
               name: 'Assignment 3',
             ),
             SourceAssignment(
-              category: 'TEST',
+              category: SourceCategory(
+                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(60.0, 100.0, true),
               name: 'Assignment 4',
             ),
             SourceAssignment(
-              category: 'TEST',
+              category: SourceCategory(
+                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(50.0, 100.0, true),
               name: 'Assignment 5',

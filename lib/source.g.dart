@@ -75,7 +75,9 @@ SourceAssignment _$SourceAssignmentFromJson(Map<String, dynamic> json) {
       dueDate: json['dueDate'] == null
           ? null
           : DateTime.parse(json['dueDate'] as String),
-      category: json['category'] as String,
+      category: json['category'] == null
+          ? null
+          : SourceCategory.fromJson(json['category'] as Map<String, dynamic>),
       name: json['name'] as String,
       flags: (json['flags'] as List)?.map((e) => e as String)?.toList(),
       grade: json['grade'] == null
