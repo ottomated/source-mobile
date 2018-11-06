@@ -14,9 +14,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class LoginPageState extends State<LoginPage> {
-TextEditingController _usernameController;
-TextEditingController _passwordController;
-@override
+  TextEditingController _usernameController;
+  TextEditingController _passwordController;
+  @override
   void initState() {
     _usernameController = TextEditingController(text: globals.username);
     _passwordController = TextEditingController(text: globals.password);
@@ -37,6 +37,35 @@ TextEditingController _passwordController;
     return Scaffold(
       appBar: AppBar(
         title: Text('Login'),
+        actions: <Widget>[
+          Tooltip(
+            message: 'Help',
+            child: IconButton(
+              onPressed: () async {
+                showDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: Text('Help'),
+                      content: Text(
+                          'Please enter your source credentials. Unless you enable push notifications, they will only be stored on your device.'),
+                      actions: <Widget>[
+                        FlatButton(
+                          child: Text('Okay'),
+                          onPressed: () async {
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              icon: Icon(Icons.help),
+            ),
+          ),
+        ],
       ),
       body: Center(
         child: ListView(
