@@ -29,7 +29,11 @@ class SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    resetLocals();
+    _init();
+  }
 
+  void resetLocals() {
     for (var c in widget.classes) {
       if (c.categories.length == 0)
         _localPrefs[c.className] = true;
@@ -40,14 +44,15 @@ class SettingsPageState extends State<SettingsPage> {
           value: (cat) => true,
         );
     }
-    _init();
   }
 
   void _init() async {
     _prefs = await SharedPreferences.getInstance();
     Set<String> keys = _prefs.getKeys();
     if (keys.contains('notify_enabled')) {
-      _notificationsEnabled = _prefs.getBool('notify_enabled');
+      setState(() {
+        _notificationsEnabled = _prefs.getBool('notify_enabled');
+      });
     } else {
       await _prefs.setBool('notify_enabled', false);
     }
@@ -201,6 +206,10 @@ class SettingsPageState extends State<SettingsPage> {
               {'token': widget.firebaseToken},
             );
             if (success) {
+              resetLocals();
+              await _prefs.setString(
+                  'notify_class_settings', json.encode(_localPrefs));
+
               await _prefs.setBool('notify_enabled', false);
               setState(() {
                 _notificationsEnabled = false;
@@ -226,34 +235,38 @@ class SettingsPageState extends State<SettingsPage> {
                 return ExpansionTile(
                   title: Text(c.classNameCased),
                   children: c.categories.map((cat) {
-                    return ListTile(
-                      title: Text(cat.name),
-                      dense: true,
-                      leading: Padding(
-                        padding: EdgeInsets.only(left: 30.0),
-                        child: Checkbox(
-                          value: _localPrefs[c.className][cat.id],
-                          onChanged: _notificationsEnabled
-                              ? (newVal) async {
-                                  Map newPrefs = json.decode(json.encode(_localPrefs));
-                                  newPrefs[c.className][cat.id] = newVal;
+                    var miniOnChg = _notificationsEnabled
+                        ? (newVal) async {
+                            Map newPrefs =
+                                json.decode(json.encode(_localPrefs));
+                            newPrefs[c.className][cat.id] = newVal;
 
-                                  bool success = await _makeRequest(
-                                    'https://ottomated.net/source/prefs',
-                                    {
-                                      'token': widget.firebaseToken,
-                                      'updates': json.encode(newPrefs)
-                                    },
-                                  );
-                                  if (success) {
-                                    _localPrefs = Map.from(newPrefs);
-                                    await _prefs.setString(
-                                        'notify_class_settings',
-                                        json.encode(_localPrefs));
-                                  }
-                                }
-                              : null,
-                          activeColor: Theme.of(context).accentColor,
+                            bool success = await _makeRequest(
+                              'https://ottomated.net/source/prefs',
+                              {
+                                'token': widget.firebaseToken,
+                                'updates': json.encode(newPrefs)
+                              },
+                            );
+                            if (success) {
+                              _localPrefs = Map.from(newPrefs);
+                              await _prefs.setString('notify_class_settings',
+                                  json.encode(_localPrefs));
+                            }
+                          }
+                        : null;
+                    return InkWell(
+                      onTap: () => miniOnChg(!_localPrefs[c.className][cat.id]),
+                      child: ListTile(
+                        title: Text(cat.name),
+                        dense: true,
+                        leading: Padding(
+                          padding: EdgeInsets.only(left: 30.0),
+                          child: Checkbox(
+                            value: _localPrefs[c.className][cat.id],
+                            onChanged: miniOnChg,
+                            activeColor: Theme.of(context).accentColor,
+                          ),
                         ),
                       ),
                     );
@@ -261,7 +274,8 @@ class SettingsPageState extends State<SettingsPage> {
                   leading: Checkbox(
                     onChanged: _notificationsEnabled
                         ? (_) async {
-                            Map newPrefs = json.decode(json.encode(_localPrefs));
+                            Map newPrefs =
+                                json.decode(json.encode(_localPrefs));
                             bool toEnable = false;
                             if ((_localPrefs[c.className] as Map)
                                 .values
@@ -287,10 +301,10 @@ class SettingsPageState extends State<SettingsPage> {
                           }
                         : null,
                     value: () {
-                      int numberEnabled = _localPrefs[c.className]
-                          .values
-                          .where((_) { return _ as bool;})
-                          .length;
+                      int numberEnabled =
+                          _localPrefs[c.className].values.where((_) {
+                        return _ as bool;
+                      }).length;
                       if (numberEnabled == 0) {
                         return false;
                       } else if (numberEnabled ==
@@ -305,17 +319,32 @@ class SettingsPageState extends State<SettingsPage> {
                   ),
                 );
               } else {
+                var miniOnChg = _notificationsEnabled
+                    ? (newVal) async {
+                        Map newPrefs = json.decode(json.encode(_localPrefs));
+                        newPrefs[c.className] = newVal;
+
+                        bool success = await _makeRequest(
+                          'https://ottomated.net/source/prefs',
+                          {
+                            'token': widget.firebaseToken,
+                            'updates': json.encode(newPrefs)
+                          },
+                        );
+                        if (success) {
+                          _localPrefs = Map.from(newPrefs);
+                          await _prefs.setString('notify_class_settings',
+                              json.encode(_localPrefs));
+                        }
+                      }
+                    : null;
                 return InkWell(
-                  onTap: () {
-                    // TODO: Enable class?
-                  },
+                  onTap: () => miniOnChg(!_localPrefs[c.className]),
                   child: ListTile(
                     title: Text(c.classNameCased),
                     leading: Checkbox(
-                      onChanged: (newVal) {
-                        // TODO: Same as above
-                      },
-                      value: true, // TODO: Class enabled
+                      onChanged: miniOnChg,
+                      value: _localPrefs[c.className],
                       activeColor: Theme.of(context).accentColor,
                     ),
                   ),
