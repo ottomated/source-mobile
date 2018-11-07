@@ -138,6 +138,10 @@ class SettingsPageState extends State<SettingsPage> {
             ),
           );
           if (globals.cameBackFromSettingsRefresh2) {
+            bool success = await _makeRequest(
+              'https://ottomated.net/source/deregister',
+              {'token': widget.firebaseToken},
+            );
             globals.cameBackFromSettingsRefresh2 = false;
             globals.cameBackFromSettingsRefresh = true;
             Navigator.of(context).pop();

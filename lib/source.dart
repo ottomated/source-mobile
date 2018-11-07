@@ -49,7 +49,7 @@ class SourceClass {
   List<SourceCategory> categories;
 
   String get classNameCased {
-    Map<String, String> replaceWords = {'Wrld': 'World'};
+    Map<String, String> replaceWords = {'Wrld': 'World', 'Des': 'Design'};
     List<String> acronyms = ['AP', 'CIHS'];
     return this.className.splitMapJoin(RegExp(r'\S+'), onMatch: (m) {
       String word = m.group(0);
