@@ -455,9 +455,11 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             bottom: ListTile(
-              subtitle: Text('${ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
+              subtitle: Text(
+                  '${ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
               title: Text('${ass.grade.fancyScore}'),
-              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '', style: TextStyle(fontSize: 17.0)),
+              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '',
+                  style: TextStyle(fontSize: 17.0)),
             ),
           );
           /*      return new Card(children: <Widget>[
@@ -492,6 +494,13 @@ class _HomePageState extends State<HomePage>
             message: 'Settings',
             child: IconButton(
               onPressed: () async {
+                if (globals.username == 'test_student') {
+                  key.currentState.showSnackBar(SnackBar(
+                    content: Text('Settings disabled for debug student'),
+                    backgroundColor: Theme.of(context).accentColor,
+                  ));
+                  return;
+                }
                 await Navigator.push(
                   context,
                   MaterialPageRoute(

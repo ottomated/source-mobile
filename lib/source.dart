@@ -386,7 +386,7 @@ class Source {
       String w = row.children[1].text.split('%')[0];
       double weight;
       if (w == '-') {
-        weight = 0;
+        weight = 0.0;
       } else {
         weight = double.parse(row.children[1].text.split('%')[0]);
       }
@@ -423,7 +423,7 @@ class Source {
               double.parse(grade[0]), double.parse(grade[1]), graded),
           category: cats.firstWhere(
             (c) => c.id == category,
-            orElse: () => SourceCategory(id: '', name: '', weight: 0),
+            orElse: () => SourceCategory(id: '', name: '', weight: 0.0),
           ),
           name: name);
       asses.add(ass);
