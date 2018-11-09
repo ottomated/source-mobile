@@ -326,7 +326,7 @@ class Source {
 
       int i = 0;
       for (Element gradeEl in row.querySelectorAll('.colorMyGrade')) {
-        if (gradeEl.text != '[ i ]') {
+        if (gradeEl.text != '[ i ]' || gradeEl.text.startsWith('P')) {
           RegExp r = RegExp('[0-9]+(?:\.[0-9]+)?');
           grades[overallNames[i]] = (SourceClassGrade(
               double.parse(r.firstMatch(gradeEl.text).group(0))));
@@ -418,7 +418,7 @@ class Source {
       }
       SourceAssignment ass = SourceAssignment(
           dueDate: DateTime(
-              int.parse(date[2]), int.parse(date[1]), int.parse(date[0])),
+              int.parse(date[2]), int.parse(date[0]), int.parse(date[1])),
           grade: SourceAssignmentGrade(
               double.parse(grade[0]), double.parse(grade[1]), graded),
           category: cats.firstWhere(

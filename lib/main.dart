@@ -455,8 +455,9 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             bottom: ListTile(
-              title: Text('${ass.grade.fancyScore} ${ass.category.name}'),
-              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : ''),
+              subtitle: Text('${ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
+              title: Text('${ass.grade.fancyScore}'),
+              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '', style: TextStyle(fontSize: 17.0)),
             ),
           );
           /*      return new Card(children: <Widget>[
