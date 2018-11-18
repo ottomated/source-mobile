@@ -3,7 +3,7 @@
 
 The [website for the SPS source](https://ps.seattleschools.org) is not responsive and a pain to use on a mobile device. This app, written in [Flutter](https://flutter.io), serves as a cross-platform method for reading grades much more easily.
 
-[![](img/header.png)](https://ottomated.net)
+<a href="https://ottomated.net"><img src="img/header.png" width="500"/></a>
 
 <a href="https://play.google.com/store/apps/details?id=net.ottomated.sourcemobile"><img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" alt="Get it on Google Play" width="150"/></a>
 
