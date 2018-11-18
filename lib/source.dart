@@ -20,6 +20,7 @@ class SourceResults {
   String imageFilePath;
   String grade;
   String html;
+  String errorID;
   List<SourceClass> classes;
   SourceResults() {
     this.name = [];
@@ -28,6 +29,7 @@ class SourceResults {
     this.imageFilePath = '';
     this.grade = '';
     this.html = '';
+    this.errorID = '';
     this.classes = [];
   }
   factory SourceResults.fromJson(Map<String, dynamic> json) =>
@@ -115,12 +117,18 @@ class SourceClass {
 class SourceAssignment {
   DateTime dueDate;
   SourceCategory category;
+  List<String> quarters;
   String name;
   List<String> flags;
   SourceAssignmentGrade grade;
 
   SourceAssignment(
-      {this.dueDate, this.category, this.name, this.flags, this.grade});
+      {this.dueDate,
+      this.category,
+      this.name,
+      this.flags,
+      this.grade,
+      this.quarters});
   factory SourceAssignment.fromJson(Map<String, dynamic> json) =>
       _$SourceAssignmentFromJson(json);
   Map<String, dynamic> toJson() => _$SourceAssignmentToJson(this);
@@ -227,7 +235,7 @@ class SourceClassGrade {
     59.5: Tuple2('D', 0xFFF9AC48),
     0.0: Tuple2('E', 0xFFEF3D3D),
   };
-  SourceClassGrade(percent) {
+  SourceClassGrade(double percent) {
     this.percent = percent;
     for (double high in _letterValues.keys) {
       if (percent >= high) {
@@ -236,6 +244,11 @@ class SourceClassGrade {
         break;
       }
     }
+  }
+  SourceClassGrade.fromP(double percent) {
+    this.letter = 'P';
+    this.color = 0xFF628D62;
+    this.percent = percent;
   }
   @override
   String toString() {
@@ -296,25 +309,31 @@ class Source {
   var _client = http.Client();
 
   Future<void> parseResHTML(SourceResults res) async {
+    res.errorID += '\nParsing html';
     Document document = parse(res.html);
 
+    res.errorID += '\nGetting quarter names';
     // Get names of each quarter/semester
     Element headerRow =
         document.querySelector('#tblgrades tbody tr.center.th2');
     List<String> overallNames =
         headerRow.children.sublist(4, 10).map((el) => el.text).toList();
 
+    res.errorID += '\nGetting rows';
     List<Element> rows =
         document.querySelectorAll('#tblgrades tbody tr.center:not(.th2)');
     for (Element row in rows) {
+      res.errorID += '\nParsing period ' + row.firstChild.text;
       // Period
       String period = row.children[0].innerHtml.split('(')[0];
+      res.errorID += '\nParsing class name/room ' + row.firstChild.text;
       // Teacher + Class Name box
       Element box = row.querySelector('[align="left"]');
       // Class name and room                v magic character
       String className = box.text.split('\u00A0')[0].trim();
       String room = box.text.split('Rm:')[1].trim();
       // Teacher info
+      res.errorID += '\nParsing teacher ' + row.firstChild.text;
       String teacherName = box.children.last.text.trim();
       String teacherEmail =
           box.children.last.attributes['href'].split('mailto:')[1].trim();
@@ -325,15 +344,33 @@ class Source {
       List<SourceCategory> categories = [];
 
       int i = 0;
+      DateTime middle;
       for (Element gradeEl in row.querySelectorAll('.colorMyGrade')) {
-        if (gradeEl.text != '[ i ]' || gradeEl.text.startsWith('P')) {
+        res.errorID += '\nParsing semester grade for class ' +
+            className +
+            ' text ' +
+            gradeEl.text;
+        if (gradeEl.text != '[ i ]') {
           RegExp r = RegExp('[0-9]+(?:\.[0-9]+)?');
-          grades[overallNames[i]] = (SourceClassGrade(
-              double.parse(r.firstMatch(gradeEl.text).group(0))));
+          double p = double.parse(r.firstMatch(gradeEl.text).group(0));
+          if (gradeEl.text.startsWith('P'))
+            grades[overallNames[i]] = (SourceClassGrade.fromP(p));
+          else
+            grades[overallNames[i]] = (SourceClassGrade(p));
+          if (overallNames[i] == 'Q1' || overallNames[i] == 'Q3') {
+            res.errorID += '\nParsing datetime ' + gradeEl.text;
+            middle = _parseDateTime(
+                Uri.parse(gradeEl.querySelector('a').attributes['href'])
+                    .queryParameters['enddate']
+                    .split('/'));
+          }
           if (overallNames[i].startsWith('S')) {
             Tuple2 r = await parseResClassPage(
-              gradeEl.querySelector('a').attributes['href'],
-            );
+                gradeEl.querySelector('a').attributes['href'],
+                middle,
+                Tuple2(overallNames[i - 2], overallNames[i - 1]),
+                overallNames[i],
+                res);
             List<SourceAssignment> newAsses = r.item1;
             List<SourceCategory> newCats = r.item2;
             assignments.addAll(newAsses);
@@ -342,7 +379,6 @@ class Source {
         }
         i++;
       }
-
       res.classes.add(SourceClass(
           period: period,
           className: className,
@@ -358,11 +394,21 @@ class Source {
     }
   }
 
+  DateTime _parseDateTime(List<String> date) {
+    return DateTime(int.parse(date[2]), int.parse(date[0]), int.parse(date[1]));
+  }
+
   Future<Tuple2<List<SourceAssignment>, List<SourceCategory>>>
-      parseResClassPage(String url) async {
+      parseResClassPage(
+          String url,
+          DateTime middle,
+          Tuple2<String, String> qnames,
+          String semester,
+          SourceResults res) async {
     http.Request req;
     http.StreamedResponse response;
     String body;
+    res.errorID += '\nRequesting class page ' + url;
     // Make request
     req = http.Request(
         'GET', Uri.parse('https://ps.seattleschools.org/guardian/$url'))
@@ -378,11 +424,13 @@ class Source {
     List<SourceCategory> cats = [];
 
     for (var row in catElements) {
+      res.errorID += '\nParsing category name ' + row.firstChild.text;
       List<String> n = row.children[0].text.split(' (');
       if (n.length != 2) continue;
       String id = n[1].split(')')[0];
       String name = n[0];
 
+      res.errorID += '\nParsing category weight ' + row.children[1].text;
       String w = row.children[1].text.split('%')[0];
       double weight;
       if (w == '-') {
@@ -404,11 +452,13 @@ class Source {
 
     for (var row in assElements) {
       if (row.children[0].text == 'No assignments found.') continue;
+      res.errorID += '\nGetting date ' + row.children[0].text;
       List<String> date = row.children[0].text.split('/');
       if (date.length == 1) continue;
       //SourceAssignmentGrade grade = SourceAssignmentGrade(9.0, 10.0);
       String category = row.children[1].text;
       String name = row.children[2].text;
+      res.errorID += '\nParsing grade ' + row.children[8].text;
       List<String> grade = row.children[8].text.split('/');
       bool graded = true;
       if (grade.length == 1) grade.add('0');
@@ -416,16 +466,24 @@ class Source {
         graded = false;
         grade[0] = '0';
       }
+      res.errorID += '\nParsing date $date';
+      DateTime dueDate = _parseDateTime(date);
+
+      res.errorID += '\nConstructing ass: grade: $grade';
+      //print('${dueDate} ${middle} ${qnames}');
       SourceAssignment ass = SourceAssignment(
-          dueDate: DateTime(
-              int.parse(date[2]), int.parse(date[0]), int.parse(date[1])),
+          dueDate: dueDate,
           grade: SourceAssignmentGrade(
               double.parse(grade[0]), double.parse(grade[1]), graded),
           category: cats.firstWhere(
             (c) => c.id == category,
             orElse: () => SourceCategory(id: '', name: '', weight: 0.0),
           ),
-          name: name);
+          name: name,
+          quarters: [
+            semester,
+            dueDate.isAfter(middle) ? qnames.item2 : qnames.item1
+          ]);
       asses.add(ass);
     }
     return Tuple2(asses, cats);
@@ -469,12 +527,12 @@ class Source {
   }
 
   Future doReq(String username, String password) async {
-    if (username == 'test_student') {
+    if (username == 'test_student' || username == 'student') {
       SourceResults res = SourceResults();
       res.grade = '12';
       res.stateID = '1234567890';
       res.studentID = '1234567';
-      res.name = ['Test', 'Student'];
+      res.name = ['John', 'Doe'];
       // Download photo
       http.Response response =
           await http.get('https://picsum.photos/200/?random');
@@ -485,9 +543,9 @@ class Source {
       await file.writeAsBytes(bytes);
       res.classes = [
         SourceClass(
-          className: 'AP CLASS 1',
+          className: 'AP CALCULUS',
           period: '1',
-          teacherName: 'Teacher Name',
+          teacherName: 'Math Teacher',
           teacherEmail: 'email@example.com',
           overallGrades: {
             'Q1': SourceClassGrade(100.0),
@@ -503,28 +561,27 @@ class Source {
                   SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(10.0, 10.0, true),
-              name: 'Assignment 1',
+              name: 'Homework 1',
             ),
             SourceAssignment(
-              category:
-                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
+              category: SourceCategory(id: 'TST', name: 'Tests', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(87.0, 100.0, true),
-              name: 'Assignment 2',
+              name: 'Unit Test',
             ),
             SourceAssignment(
               category:
                   SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(0.0, 10.0, false),
-              name: 'Ungraded Assignment 3',
+              name: 'Homework 2',
             ),
           ],
         ),
         SourceClass(
-          className: 'HONORS CLASS 1H',
+          className: 'WRLD HISTORY 1H',
           period: '2',
-          teacherName: 'Teacher Name',
+          teacherName: 'History Teacher',
           teacherEmail: 'email@example.com',
           overallGrades: {
             'Q1': SourceClassGrade(100.0),
@@ -537,35 +594,35 @@ class Source {
                   id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(100.0, 100.0, true),
-              name: 'Assignment 1',
+              name: 'Unit 1',
             ),
             SourceAssignment(
               category: SourceCategory(
                   id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(80.0, 100.0, true),
-              name: 'Assignment 2',
+              name: 'Unit 2',
             ),
             SourceAssignment(
               category: SourceCategory(
                   id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(70.0, 100.0, true),
-              name: 'Assignment 3',
+              name: 'Unit 3',
             ),
             SourceAssignment(
               category: SourceCategory(
                   id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(60.0, 100.0, true),
-              name: 'Assignment 4',
+              name: 'Unit 4',
             ),
             SourceAssignment(
               category: SourceCategory(
                   id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(50.0, 100.0, true),
-              name: 'Assignment 5',
+              name: 'Unit 5',
             ),
           ],
         ),
@@ -573,104 +630,124 @@ class Source {
       return res;
     }
     SourceResults res = SourceResults();
-    http.Request req;
-    http.StreamedResponse response;
-    _cookies = CookieStore();
-    // Initialize session
-    req =
-        http.Request('GET', Uri.parse('https://ps.seattleschools.org/public/'))
-          ..followRedirects = false;
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    // Initialize session
-    req = http.Request(
-        'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
-      ..followRedirects = false;
-    req.headers.addAll({'Cookie': _cookies.toString()});
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    // Get home
-    req = http.Request(
-        'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
-      ..followRedirects = false;
-    req.headers.addAll({'Cookie': _cookies.toString()});
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    // Parse out tokens
-    String body = await response.stream.transform(utf8.decoder).join();
-    RegExp pstokenRgx =
-        RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
-    RegExp contextDataRgx = RegExp(
-        r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
-    String pstoken = pstokenRgx.firstMatch(body).group(1);
-    String contextData = contextDataRgx.firstMatch(body).group(1);
-    // Login request
-    req = http.Request(
-        'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-      ..followRedirects = false;
-    req.headers.addAll({
-      'Cookie': _cookies.toString(),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    });
-    req.body = generateLoginBody(username, password, pstoken, contextData);
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    // Get page html
-    req = http.Request(
-        'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-      ..followRedirects = false;
-    req.headers.addAll({'Cookie': _cookies.toString()});
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    if (response.statusCode != 200) {
-      return null;
+    res.errorID += '\nRequest 1';
+    try {
+      http.Request req;
+      http.StreamedResponse response;
+      _cookies = CookieStore();
+      // Initialize session
+      req = http.Request(
+          'GET', Uri.parse('https://ps.seattleschools.org/public/'))
+        ..followRedirects = false;
+      response = await _client.send(req);
+      _cookies.setCookies(response.headers['set-cookie']);
+      // Initialize session
+      res.errorID += '\nRequest 2';
+      req = http.Request(
+          'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
+        ..followRedirects = false;
+      req.headers.addAll({'Cookie': _cookies.toString()});
+      response = await _client.send(req);
+      _cookies.setCookies(response.headers['set-cookie']);
+      // Get home
+      res.errorID += '\nRequest 3';
+      req = http.Request(
+          'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
+        ..followRedirects = false;
+      req.headers.addAll({'Cookie': _cookies.toString()});
+      response = await _client.send(req);
+      if (response.headers['set-cookie'] == null)
+        throw Exception(
+            'The Source is down for maintenance.\nRegular hours:\nWednesday: 10PM - 11PM\nSaturday: 6AM-9AM');
+      _cookies.setCookies(response.headers['set-cookie']);
+      // Parse out tokens
+      res.errorID += '\nRequest 3: getting tokens';
+      String body = await response.stream.transform(utf8.decoder).join();
+      RegExp pstokenRgx =
+          RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
+      RegExp contextDataRgx = RegExp(
+          r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
+      String pstoken = pstokenRgx.firstMatch(body).group(1);
+      String contextData = contextDataRgx.firstMatch(body).group(1);
+      res.errorID += '\nRequest 4';
+      // Login request
+      req = http.Request(
+          'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+        ..followRedirects = false;
+      req.headers.addAll({
+        'Cookie': _cookies.toString(),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      });
+      req.body = generateLoginBody(username, password, pstoken, contextData);
+      response = await _client.send(req);
+      _cookies.setCookies(response.headers['set-cookie']);
+      res.errorID += '\nRequest 5';
+      // Get page html
+      req = http.Request(
+          'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+        ..followRedirects = false;
+      req.headers.addAll({'Cookie': _cookies.toString()});
+      response = await _client.send(req);
+      _cookies.setCookies(response.headers['set-cookie']);
+      if (response.statusCode != 200) {
+        return null;
+      }
+      body = await response.stream.transform(utf8.decoder).join();
+      res.html = body;
+
+      res.errorID += '\nGetting student info';
+      // Get stuff from home
+      res.studentID =
+          RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+              .firstMatch(body)
+              .group(1);
+      res.stateID =
+          RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+              .firstMatch(body)
+              .group(1);
+      res.grade =
+          RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+              .firstMatch(body)
+              .group(1);
+
+      res.errorID += '\nGetting photo';
+      // Download photo html page
+      req = http.Request(
+          'GET',
+          Uri.parse(
+              'https://ps.seattleschools.org/guardian/student_photo.html'))
+        ..followRedirects = false;
+      req.headers.addAll({'Cookie': _cookies.toString()});
+      response = await _client.send(req);
+      _cookies.setCookies(response.headers['set-cookie']);
+      body = await response.stream.transform(utf8.decoder).join();
+      // Extract photo url
+      RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
+      String studentPhotoUrl = 'https://ps.seattleschools.org' +
+          studentPhotoRgx.firstMatch(body).group(1);
+
+      res.errorID += '\nGetting full name';
+      // Extract full name
+      RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
+      String name = nameRgx.firstMatch(body).group(1);
+      res.name.addAll(name.split(', ')[1].split(' '));
+      res.name.add(name.split(', ')[0]);
+      res.errorID += '\nDownloading photo';
+      // Download photo
+      req = http.Request('GET', Uri.parse(studentPhotoUrl))
+        ..followRedirects = false;
+      req.headers.addAll({'Cookie': _cookies.toString()});
+      response = await _client.send(req);
+      var bytes = await response.stream.toBytes();
+      String dir = (await getApplicationDocumentsDirectory()).path;
+      File file = File('$dir/${res.name[0]}.jpeg');
+      res.imageFilePath = '$dir/${res.name[0]}.jpeg';
+      await file.writeAsBytes(bytes);
+      // Parse HTMLs
+      await parseResHTML(res);
+      return res;
+    } catch (e, trace) {
+      return [res, e, trace];
     }
-    body = await response.stream.transform(utf8.decoder).join();
-    res.html = body;
-
-    // Get stuff from home
-    res.studentID =
-        RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-            .firstMatch(body)
-            .group(1);
-    res.stateID = RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-        .firstMatch(body)
-        .group(1);
-    res.grade = RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-        .firstMatch(body)
-        .group(1);
-
-    // Download photo html page
-    req = http.Request('GET',
-        Uri.parse('https://ps.seattleschools.org/guardian/student_photo.html'))
-      ..followRedirects = false;
-    req.headers.addAll({'Cookie': _cookies.toString()});
-    response = await _client.send(req);
-    _cookies.setCookies(response.headers['set-cookie']);
-    body = await response.stream.transform(utf8.decoder).join();
-    // Extract photo url
-    RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
-    String studentPhotoUrl = 'https://ps.seattleschools.org' +
-        studentPhotoRgx.firstMatch(body).group(1);
-
-    // Extract full name
-    RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
-    String name = nameRgx.firstMatch(body).group(1);
-    res.name.addAll(name.split(', ')[1].split(' '));
-    res.name.add(name.split(', ')[0]);
-    // Download photo
-    req = http.Request('GET', Uri.parse(studentPhotoUrl))
-      ..followRedirects = false;
-    req.headers.addAll({'Cookie': _cookies.toString()});
-    response = await _client.send(req);
-    var bytes = await response.stream.toBytes();
-    String dir = (await getApplicationDocumentsDirectory()).path;
-    File file = File('$dir/${res.name[0]}.jpeg');
-    res.imageFilePath = '$dir/${res.name[0]}.jpeg';
-    await file.writeAsBytes(bytes);
-
-    // Parse HTMLs
-    await parseResHTML(res);
-    return res;
   }
 }

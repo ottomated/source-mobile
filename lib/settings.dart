@@ -3,9 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'source.dart';
 import 'login.dart';
 import 'dart:convert';
-import 'main.dart';
 import 'globals.dart' as globals;
 import 'package:http/http.dart' as http;
+import 'package:fluttertoast/fluttertoast.dart';
 
 class SettingsPage extends StatefulWidget {
   SettingsPage({Key key, this.classes, this.firebaseToken}) : super(key: key);
@@ -66,6 +66,7 @@ class SettingsPageState extends State<SettingsPage> {
   }
 
   Future<bool> _makeRequest(String url, Map body) async {
+    if (_working) return false;
     setState(() {
       _working = true;
     });
@@ -76,50 +77,21 @@ class SettingsPageState extends State<SettingsPage> {
         body: json.encode(body),
       );
     } catch (e) {
+      print(e);
       setState(() {
         _working = false;
       });
-
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text('Error'),
-            content: Text(e.toString()),
-            actions: <Widget>[
-              FlatButton(
-                child: Text('Okay'),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              )
-            ],
-          );
-        },
-      );
+      Fluttertoast.showToast(msg: e.toString());
+      Navigator.pop(context);
       return false;
     }
     setState(() {
       _working = false;
     });
-    if (r.statusCode != 200) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text('Error'),
-            content: Text('Invalid request'),
-            actions: <Widget>[
-              FlatButton(
-                child: Text('Okay'),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              )
-            ],
-          );
-        },
-      );
+    if (r.statusCode != 404 && r.statusCode != 200) {
+      Fluttertoast.showToast(
+          msg: 'Server Error (Invalid Request ${r.statusCode})');
+      Navigator.pop(context);
       return false;
     }
     return true;
@@ -129,23 +101,50 @@ class SettingsPageState extends State<SettingsPage> {
     return [
       ListTile(
         title: Text('Logged in as ${globals.username}'),
-        subtitle: Text('Change account'),
+        subtitle: Text('Log out'),
         onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => LoginPage(),
-            ),
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('Log Out'),
+                content: Text('Are you sure you want to log out?'),
+                actions: <Widget>[
+                  FlatButton(
+                    child: Text('Cancel'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  FlatButton(
+                    child: Text('Log Out'),
+                    onPressed: () async {
+                      bool success = await _makeRequest(
+                        'https://ottomated.net/source/deregister',
+                        {'token': widget.firebaseToken},
+                      );
+                      globals.username = '';
+                      globals.password = '';
+                      var prefs = await SharedPreferences.getInstance();
+                      prefs.setString('a', '');
+                      prefs.setString('b', '');
+                      await _prefs.remove('notify_enabled');
+                      await _prefs.remove('notify_class_settings');
+
+                      Navigator.of(context).pop();
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => LoginPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
           );
-          if (globals.cameBackFromSettingsRefresh2) {
-            bool success = await _makeRequest(
-              'https://ottomated.net/source/deregister',
-              {'token': widget.firebaseToken},
-            );
-            globals.cameBackFromSettingsRefresh2 = false;
-            globals.cameBackFromSettingsRefresh = true;
-            Navigator.of(context).pop();
-          }
         },
         trailing: Icon(Icons.person_add),
       ),
@@ -155,72 +154,76 @@ class SettingsPageState extends State<SettingsPage> {
         subtitle: Text(
             'Push notifications are ${_notificationsEnabled ? 'enabled' : 'disabled'}'),
         value: _notificationsEnabled,
-        onChanged: (newVal) async {
-          if (newVal) {
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) {
-                return AlertDialog(
-                  title: Text('Push Notifcations'),
-                  content: Text(
-                      'By enabling push notifications, you agree that your stored credentials will be uploaded, encrypted and stored. This is necessary in order to send you notifications. If you wish to disable this at any point, you can disable this switch.'),
-                  actions: <Widget>[
-                    FlatButton(
-                      child: Text('Cancel'),
-                      onPressed: _working
-                          ? null
-                          : () {
-                              Navigator.pop(context);
-                            },
-                    ),
-                    FlatButton(
-                      child: Text('Accept'),
-                      onPressed: _working
-                          ? null
-                          : () async {
-                              bool success = await _makeRequest(
-                                'https://ottomated.net/source/register',
-                                {
-                                  'token': widget.firebaseToken,
-                                  'sUsername': globals.username,
-                                  'sPassword': globals.password,
-                                  'classes': Map.fromEntries(
-                                    widget.classes.map(
-                                        (c) => MapEntry(c.className, true)),
-                                  ),
-                                },
-                              );
-                              Navigator.pop(context);
-                              if (success) {
-                                await _prefs.setBool('notify_enabled', true);
-                                setState(() {
-                                  _notificationsEnabled = true;
-                                });
-                              }
-                            },
-                    ),
-                  ],
-                );
-              },
-            );
-          } else {
-            bool success = await _makeRequest(
-              'https://ottomated.net/source/deregister',
-              {'token': widget.firebaseToken},
-            );
-            if (success) {
-              resetLocals();
-              await _prefs.setString(
-                  'notify_class_settings', json.encode(_localPrefs));
+        onChanged: widget.classes.length == 0
+            ? null
+            : (newVal) async {
+                if (newVal) {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: Text('Push Notifcations'),
+                        content: Text(
+                            'By enabling push notifications, you agree that your stored credentials will be uploaded, encrypted and stored. This is necessary in order to send you notifications. If you wish to disable this at any point, you can disable this switch.'),
+                        actions: <Widget>[
+                          FlatButton(
+                            child: Text('Cancel'),
+                            onPressed: _working
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                  },
+                          ),
+                          FlatButton(
+                            child: Text('Accept'),
+                            onPressed: _working
+                                ? null
+                                : () async {
+                                    if (_working) return;
+                                    bool success = await _makeRequest(
+                                      'https://ottomated.net/source/register',
+                                      {
+                                        'token': widget.firebaseToken,
+                                        'sUsername': globals.username,
+                                        'sPassword': globals.password,
+                                        'classes': Map.fromEntries(
+                                          widget.classes.map((c) =>
+                                              MapEntry(c.className, true)),
+                                        ),
+                                      },
+                                    );
+                                    Navigator.pop(context);
+                                    if (success) {
+                                      await _prefs.setBool(
+                                          'notify_enabled', true);
+                                      setState(() {
+                                        _notificationsEnabled = true;
+                                      });
+                                    }
+                                  },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                } else {
+                  bool success = await _makeRequest(
+                    'https://ottomated.net/source/deregister',
+                    {'token': widget.firebaseToken},
+                  );
+                  if (success) {
+                    resetLocals();
+                    await _prefs.setString(
+                        'notify_class_settings', json.encode(_localPrefs));
 
-              await _prefs.setBool('notify_enabled', false);
-              setState(() {
-                _notificationsEnabled = false;
-              });
-            }
-          }
-        },
+                    await _prefs.setBool('notify_enabled', false);
+                    setState(() {
+                      _notificationsEnabled = false;
+                    });
+                  }
+                }
+              },
         activeColor: Theme.of(context).accentColor,
       ),
     ];
@@ -259,6 +262,7 @@ class SettingsPageState extends State<SettingsPage> {
                             }
                           }
                         : null;
+                        //print('$_localPrefs ${c.className} ${cat.id} ${_localPrefs[c.className]}');
                     return InkWell(
                       onTap: () => miniOnChg(!_localPrefs[c.className][cat.id]),
                       child: ListTile(

@@ -5,6 +5,7 @@
 *.pyc
 *.swp
 .DS_Store
+._*
 .atom/
 .buildlog/
 .history
@@ -37,6 +38,7 @@ build/
 **/android/local.properties
 **/android/key.properties
 **/android/**/GeneratedPluginRegistrant.java
+**/google-services.json
 
 # iOS/XCode related
 **/ios/**/*.mode1v3
@@ -63,6 +65,7 @@ build/
 **/ios/Flutter/flutter_assets/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
+**/GoogleService-Info.plist
 
 # Exceptions to above rules.
 !**/ios/**/default.mode1v3

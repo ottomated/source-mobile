@@ -14,6 +14,7 @@ SourceResults _$SourceResultsFromJson(Map<String, dynamic> json) {
     ..imageFilePath = json['imageFilePath'] as String
     ..grade = json['grade'] as String
     ..html = json['html'] as String
+    ..errorID = json['errorID'] as String
     ..classes = (json['classes'] as List)
         ?.map((e) =>
             e == null ? null : SourceClass.fromJson(e as Map<String, dynamic>))
@@ -28,6 +29,7 @@ Map<String, dynamic> _$SourceResultsToJson(SourceResults instance) =>
       'imageFilePath': instance.imageFilePath,
       'grade': instance.grade,
       'html': instance.html,
+      'errorID': instance.errorID,
       'classes': instance.classes
     };
 
@@ -83,13 +85,15 @@ SourceAssignment _$SourceAssignmentFromJson(Map<String, dynamic> json) {
       grade: json['grade'] == null
           ? null
           : SourceAssignmentGrade.fromJson(
-              json['grade'] as Map<String, dynamic>));
+              json['grade'] as Map<String, dynamic>),
+      quarters: (json['quarters'] as List)?.map((e) => e as String)?.toList());
 }
 
 Map<String, dynamic> _$SourceAssignmentToJson(SourceAssignment instance) =>
     <String, dynamic>{
       'dueDate': instance.dueDate?.toIso8601String(),
       'category': instance.category,
+      'quarters': instance.quarters,
       'name': instance.name,
       'flags': instance.flags,
       'grade': instance.grade

@@ -11,6 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'globals.dart' as globals;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
 
 final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
 String _firebaseToken = '';
@@ -23,12 +25,182 @@ void main() {
 Future<void> runFirebase() async {
   _firebaseMessaging.requestNotificationPermissions();
   _firebaseToken = await _firebaseMessaging.getToken();
-  print(_firebaseToken);
+  //print(_firebaseToken);
   _firebaseMessaging.configure(
     onMessage: (Map<String, dynamic> message) async {
       print("onMessage: $message");
     },
   );
+}
+
+class ClassTab extends StatefulWidget {
+  final SourceClass sourceClass;
+  final String selectedChip;
+  ClassTab({this.sourceClass, this.selectedChip});
+
+  @override
+  _ClassTabState createState() => _ClassTabState();
+}
+
+class _ClassTabState extends State<ClassTab> {
+  String _selectedChip;
+  @override
+  void initState() {
+    this._selectedChip = widget.selectedChip;
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Column(
+        children: <Widget>[
+          Center(
+            child: Text(
+              widget.sourceClass.classNameCased,
+              style: TextStyle(fontSize: 24.0),
+            ),
+          ),
+          Center(
+            child: InkWell(
+              onTap: () {
+                return showDialog<Null>(
+                  context: context,
+                  barrierDismissible: true,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: Text('Teacher Info'),
+                      content: SingleChildScrollView(
+                        child: ListBody(
+                          children: <Widget>[
+                            Text('Name: ${widget.sourceClass.teacherName}'),
+                            InkWell(
+                              onTap: () async {
+                                await launch('mailto:' +
+                                    widget.sourceClass.teacherEmail);
+                              },
+                              child: Text(
+                                  'Email: ${widget.sourceClass.teacherEmail}'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      actions: <Widget>[
+                        FlatButton(
+                          child: Text('OK'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              child: Text(
+                widget.sourceClass.teacherName,
+                style: TextStyle(fontSize: 18.0),
+              ),
+            ),
+          ),
+          Flexible(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: widget.sourceClass.overallGrades.keys.map((q) {
+                return Container(
+                  padding: EdgeInsets.all(4.0),
+                  child: ChoiceChip(
+                    selectedColor: Colors.white,
+                    selected: _selectedChip == q,
+                    onSelected: (_) {
+                      if (_selectedChip == q)
+                        setState(() {
+                          _selectedChip = '';
+                        });
+                      else
+                        setState(() {
+                          _selectedChip = q;
+                        });
+                    },
+                    backgroundColor:
+                        Color(widget.sourceClass.overallGrades[q].color),
+                    label: RichText(
+                      text: TextSpan(
+                        text: q,
+                        style: TextStyle(
+                            color: Colors.black, fontWeight: FontWeight.bold),
+                        children: [
+                          TextSpan(
+                            text:
+                                ': ${widget.sourceClass.overallGrades[q].letter}',
+                            style: TextStyle(
+                                fontWeight: FontWeight.normal, fontSize: 15.0),
+                          ),
+                          TextSpan(
+                            text:
+                                '  ${widget.sourceClass.overallGrades[q].percent.round()}%',
+                            style: TextStyle(
+                                fontWeight: FontWeight.normal, fontSize: 13.0),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          // Assignments
+          _makeAssignmentTable(widget.sourceClass, _selectedChip),
+        ],
+      ),
+    );
+  }
+
+  Widget _makeAssignmentTable(SourceClass sourceClass, String quarter) {
+    List<SourceAssignment> asses = sourceClass.assignments;
+    if (asses == null) asses = [];
+    if (quarter != '' && quarter != null)
+      asses = asses.where((ass) => ass.quarters.contains(quarter)).toList();
+    return Expanded(
+      flex: 5,
+      child: ListView(
+        physics: AlwaysScrollableScrollPhysics(),
+        children: asses.reversed.map((ass) {
+          return ExpandingCard(
+            top: ListTile(
+              leading: ass.grade.percent > 50.0
+                  ? Icon(Icons.assignment)
+                  : Icon(Icons.assignment_late),
+              title: Text(ass.name),
+              trailing: Text(
+                ass.grade.letter,
+                style: TextStyle(
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(ass.grade.color),
+                ),
+              ),
+            ),
+            bottom: ListTile(
+              subtitle: Text(
+                  '${ass.category.name.length > 25 ? ass.category.name.substring(0, 25) + '...' : ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
+              title: Text('${ass.grade.fancyScore}'),
+              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '',
+                  style: TextStyle(fontSize: 17.0)),
+            ),
+          );
+          /*      return new Card(children: <Widget>[
+          Text('${ass.dueDate.year}-${ass.dueDate.month}-${ass.dueDate.day}'),
+          Text(ass.name),
+          Text('${ass.grade.fancyScore}'),
+          Text('${ass.grade.percent}% ${ass.grade.letter}')
+        ]);*/
+        }).toList(),
+      ),
+    );
+  }
 }
 
 class SourceApp extends StatelessWidget {
@@ -49,6 +221,7 @@ class SourceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     var loggedIn = _checkLoggedIn();
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'The Source',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -85,6 +258,13 @@ class _HomePageState extends State<HomePage>
   String _gpa = '';
   String _weightedGpa = '';
   GlobalKey<ScaffoldState> key;
+  Map<String, String> selectedChips = {};
+
+  bool get isInDebugMode {
+    bool inDebugMode = false;
+    //assert(inDebugMode = true);
+    return inDebugMode;
+  }
 
   @override
   void initState() {
@@ -218,6 +398,16 @@ class _HomePageState extends State<HomePage>
 
   bool _isRefreshing = false;
   Future<void> _doRefresh() async {
+    if (isInDebugMode) return;
+    if (globals.username == '' || globals.password == '') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LoginPage(),
+        ),
+      );
+      return;
+    }
     setState(() {
       _isRefreshing = true;
     });
@@ -240,8 +430,33 @@ class _HomePageState extends State<HomePage>
           return AlertDialog(
             title: Text("Exception"),
             content: Text(
-              results.toString(),
+              results[1].toString(),
             ),
+            actions: <Widget>[
+              FlatButton(
+                child: Text('Submit bug report'),
+                onPressed: () async {
+                  http.Response r;
+                  try {
+                    r = await http.post(
+                      'https://ottomated.net/source/bugreport',
+                      body: json.encode({
+                        'source': json.encode(results[0]),
+                        'error': results[1].toString(),
+                        'trace': results[2].toString(),
+                      }),
+                    );
+                  } catch (e) {
+                    Fluttertoast.showToast(msg: e.toString());
+                    return false;
+                  }
+                  if (r.statusCode != 404 && r.statusCode != 200) {
+                    Fluttertoast.showToast(
+                        msg: 'Server Error (Invalid Request ${r.statusCode})');
+                  }
+                },
+              )
+            ],
           );
         },
       );
@@ -263,6 +478,7 @@ class _HomePageState extends State<HomePage>
       globals.stateID = results.stateID;
       globals.imageFilePath = results.imageFilePath;
       Iterable<double> gpas = results.classes
+          .where((c) => c.className != 'MENTORSHIP')
           .map((c) => c.overallGrades.keys
               .where((k) => k.startsWith('S'))
               .map((k) => c.overallGrades[k].percent * 0.04))
@@ -274,6 +490,7 @@ class _HomePageState extends State<HomePage>
             .toString();
       }
       Iterable<double> weightedGpas = results.classes
+          .where((c) => c.className != 'MENTORSHIP')
           .map((c) => c.overallGrades.keys
               .where((k) => k.startsWith('S'))
               .map((k) => c.overallGrades[k].percent * c.gpaWeight))
@@ -314,163 +531,12 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         );
-        return Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            children: <Widget>[
-              Center(
-                child: Text(
-                  sourceClass.classNameCased,
-                  style: TextStyle(fontSize: 24.0),
-                ),
-              ),
-              Center(
-                child: InkWell(
-                  onTap: () {
-                    return showDialog<Null>(
-                      context: context,
-                      barrierDismissible: true,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: Text('Teacher Info'),
-                          content: SingleChildScrollView(
-                            child: ListBody(
-                              children: <Widget>[
-                                Text('Name: ${sourceClass.teacherName}'),
-                                InkWell(
-                                  onTap: () async {
-                                    await launch(
-                                        'mailto:' + sourceClass.teacherEmail);
-                                  },
-                                  child: Text(
-                                      'Email: ${sourceClass.teacherEmail}'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          actions: <Widget>[
-                            FlatButton(
-                              child: Text('OK'),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  child: Text(
-                    sourceClass.teacherName,
-                    style: TextStyle(fontSize: 18.0),
-                  ),
-                ),
-              ),
-              Flexible(
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: sourceClass.overallGrades.keys.map((q) {
-                    return Container(
-                      padding: EdgeInsets.all(4.0),
-                      child: Chip(
-                        backgroundColor:
-                            Color(sourceClass.overallGrades[q].color),
-                        label: RichText(
-                          text: TextSpan(
-                            text: q,
-                            style: TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold),
-                            children: [
-                              TextSpan(
-                                text:
-                                    ': ${sourceClass.overallGrades[q].letter}',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15.0),
-                              ),
-                              TextSpan(
-                                text:
-                                    '  ${sourceClass.overallGrades[q].percent.round()}%',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 13.0),
-                              )
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  /* Table(
-                    children: sourceClass.overallGrades.keys.map((q) {
-                      return new TableRow(children: [
-                        _generateTableCellText(q, 15.0),
-                        _generateTableCell(sourceClass.overallGrades[q]),
-                      ]);
-                    }).toList(),
-                  ),*/
-                ),
-              ),
-              // Assignments
-              _makeAssignmentTable(sourceClass),
-            ],
-          ),
+        return ClassTab(
+          sourceClass: sourceClass,
+          selectedChip: selectedChips[sourceClass.className],
         );
       }));
     });
-  }
-
-  Widget _makeAssignmentTable(SourceClass sourceClass) {
-    List<SourceAssignment> asses = sourceClass.assignments;
-    if (asses == null) asses = [];
-    /*return Table(
-      children: asses.reversed.map((ass) {
-        return new TableRow(children: <Widget>[
-          Text('${ass.dueDate.year}-${ass.dueDate.month}-${ass.dueDate.day}'),
-          Text(ass.name),
-          Text('${ass.grade.fancyScore}'),
-          Text('${ass.grade.percent}% ${ass.grade.letter}')
-        ]);
-      }).toList(),
-    );*/
-    return Expanded(
-      flex: 5,
-      child: ListView(
-        physics: AlwaysScrollableScrollPhysics(),
-        children: asses.reversed.map((ass) {
-          return ExpandingCard(
-            top: ListTile(
-              leading: ass.grade.percent > 50.0
-                  ? Icon(Icons.assignment)
-                  : Icon(Icons.assignment_late),
-              title: Text(ass.name),
-              trailing: Text(
-                ass.grade.letter,
-                style: TextStyle(
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.bold,
-                  color: Color(ass.grade.color),
-                ),
-              ),
-            ),
-            bottom: ListTile(
-              subtitle: Text(
-                  '${ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
-              title: Text('${ass.grade.fancyScore}'),
-              trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '',
-                  style: TextStyle(fontSize: 17.0)),
-            ),
-          );
-          /*      return new Card(children: <Widget>[
-          Text('${ass.dueDate.year}-${ass.dueDate.month}-${ass.dueDate.day}'),
-          Text(ass.name),
-          Text('${ass.grade.fancyScore}'),
-          Text('${ass.grade.percent}% ${ass.grade.letter}')
-        ]);*/
-        }).toList(),
-      ),
-    );
   }
 
   @override
@@ -494,7 +560,9 @@ class _HomePageState extends State<HomePage>
             message: 'Settings',
             child: IconButton(
               onPressed: () async {
-                if (globals.username == 'test_student') {
+                if (_isRefreshing) return;
+                if (globals.username == 'test_student' ||
+                    globals.username == 'student') {
                   key.currentState.showSnackBar(SnackBar(
                     content: Text('Settings disabled for debug student'),
                     backgroundColor: Theme.of(context).accentColor,
@@ -505,7 +573,7 @@ class _HomePageState extends State<HomePage>
                   context,
                   MaterialPageRoute(
                     builder: (context) => SettingsPage(
-                          classes: _results.classes,
+                          classes: _results == null ? [] : _results.classes,
                           firebaseToken: _firebaseToken,
                         ),
                   ),
