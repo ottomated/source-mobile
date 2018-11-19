@@ -28,6 +28,8 @@ dependencies:
   json_annotation: any
   fluttertoast: ^2.1.0
   tuple: any
+  get_version: any
+  flutter_circular_chart: ^0.1.0
 
 dev_dependencies:
   flutter_test:

@@ -119,16 +119,18 @@ Map<String, dynamic> _$SourceAssignmentGradeToJson(
     };
 
 SourceClassGrade _$SourceClassGradeFromJson(Map<String, dynamic> json) {
-  return SourceClassGrade(json['percent'])
+  return SourceClassGrade((json['percent'] as num)?.toDouble())
     ..letter = json['letter'] as String
-    ..color = json['color'] as int;
+    ..color = json['color'] as int
+    ..gpa = (json['gpa'] as num)?.toDouble();
 }
 
 Map<String, dynamic> _$SourceClassGradeToJson(SourceClassGrade instance) =>
     <String, dynamic>{
       'letter': instance.letter,
       'percent': instance.percent,
-      'color': instance.color
+      'color': instance.color,
+      'gpa': instance.gpa
     };
 
 SourceCategory _$SourceCategoryFromJson(Map<String, dynamic> json) {

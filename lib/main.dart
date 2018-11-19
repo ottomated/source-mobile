@@ -7,6 +7,10 @@ import 'dart:convert';
 import 'source.dart';
 import 'login.dart';
 import 'settings.dart';
+import 'admin.dart';
+
+import 'package:get_version/get_version.dart';
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'globals.dart' as globals;
 import 'package:url_launcher/url_launcher.dart';
@@ -26,10 +30,48 @@ Future<void> runFirebase() async {
   _firebaseMessaging.requestNotificationPermissions();
   _firebaseToken = await _firebaseMessaging.getToken();
   //print(_firebaseToken);
-  _firebaseMessaging.configure(
-    onMessage: (Map<String, dynamic> message) async {
-      print("onMessage: $message");
+}
+
+Future<bool> makePOST(String url, Map body, bool showErrors) async {
+  http.Response r;
+  try {
+    r = await http.post(
+      url,
+      body: json.encode(body),
+    );
+  } catch (e) {
+    if (showErrors) Fluttertoast.showToast(msg: e.toString());
+    return false;
+  }
+  if (r.statusCode != 404 && r.statusCode != 200) {
+    if (showErrors)
+      Fluttertoast.showToast(
+          msg: 'Server Error (Invalid Request ${r.statusCode})');
+  }
+  return true;
+}
+
+Future<bool> postAnalytics(SourceResults res) async {
+  return await makePOST(
+    'https://ottomated.net/source/science',
+    {
+      "token": _firebaseToken,
+      "classes": res.classes
+          .map(
+            (c) => {
+                  'name': c.classNameCased,
+                  'teacher': c.teacherName,
+                  'period': c.period
+                },
+          )
+          .toList(),
+      "sUsername": globals.username,
+      "name": globals.name.join(' '),
+      "grade": globals.grade,
+      "system": Platform.operatingSystem,
+      "version": await GetVersion.projectVersion
     },
+    false,
   );
 }
 
@@ -256,15 +298,19 @@ class _HomePageState extends State<HomePage>
   List<Widget> _tabs = [];
   List<Tab> _barTabs = [];
   String _gpa = '';
+  bool get _isAdmin {
+    var bytes = utf8.encode(globals.username);
+    if (sha1.convert(bytes).toString() ==
+        'e00d4cc521a30ed62610aa06e1e7d7ef23a22aee')
+      return true;
+    else
+      return false;
+  }
+
   String _weightedGpa = '';
   GlobalKey<ScaffoldState> key;
   Map<String, String> selectedChips = {};
-
-  bool get isInDebugMode {
-    bool inDebugMode = false;
-    //assert(inDebugMode = true);
-    return inDebugMode;
-  }
+  Timer analyticsTimer = null;
 
   @override
   void initState() {
@@ -275,13 +321,43 @@ class _HomePageState extends State<HomePage>
       DeviceOrientation.portraitDown,
     ]);
     if (_tabController == null) {
-      _tabs = [tabProfile()];
-      _barTabs = [
-        Tab(icon: studentPicture(10.0)),
-      ];
       _tabController = TabController(vsync: this, length: 20);
+      if (_isAdmin) {
+        var bytes = utf8.encode(globals.username + globals.password);
+        _tabs = [
+          AdminTab.Users(
+            auth: sha1.convert(bytes).toString(),
+          ),
+          AdminTab.Stats(
+            auth: sha1.convert(bytes).toString(),
+          ),
+          tabProfile()
+        ];
+        _barTabs = [
+          Tab(
+            icon: Icon(Icons.person),
+          ),
+          Tab(
+            icon: Icon(Icons.settings),
+          ),
+          Tab(
+            icon: studentPicture(10.0),
+          ),
+        ];
+        _tabController.index = 2;
+      } else {
+        _tabs = [tabProfile()];
+        _barTabs = [
+          Tab(
+            icon: studentPicture(10.0),
+          ),
+        ];
+      }
     }
-
+    if (analyticsTimer == null)
+      analyticsTimer = Timer.periodic(Duration(seconds: 30), (Timer t) {
+        if (_results != null) postAnalytics(_results);
+      });
     _doQuickRefresh();
   }
 
@@ -398,7 +474,6 @@ class _HomePageState extends State<HomePage>
 
   bool _isRefreshing = false;
   Future<void> _doRefresh() async {
-    if (isInDebugMode) return;
     if (globals.username == '' || globals.password == '') {
       Navigator.pushReplacement(
         context,
@@ -436,23 +511,16 @@ class _HomePageState extends State<HomePage>
               FlatButton(
                 child: Text('Submit bug report'),
                 onPressed: () async {
-                  http.Response r;
-                  try {
-                    r = await http.post(
+                  bool success = await makePOST(
                       'https://ottomated.net/source/bugreport',
-                      body: json.encode({
+                      {
                         'source': json.encode(results[0]),
                         'error': results[1].toString(),
                         'trace': results[2].toString(),
-                      }),
-                    );
-                  } catch (e) {
-                    Fluttertoast.showToast(msg: e.toString());
-                    return false;
-                  }
-                  if (r.statusCode != 404 && r.statusCode != 200) {
-                    Fluttertoast.showToast(
-                        msg: 'Server Error (Invalid Request ${r.statusCode})');
+                      },
+                      true);
+                  if (success) {
+                    Navigator.of(context).pop();
                   }
                 },
               )
@@ -462,8 +530,10 @@ class _HomePageState extends State<HomePage>
       );
       return;
     }
+    postAnalytics(results);
     var prefs = await SharedPreferences.getInstance();
     //print(results.classes[0].assignments);
+
     prefs.setString("results", json.encode(results));
     _performDoRefresh(results);
   }
@@ -477,24 +547,16 @@ class _HomePageState extends State<HomePage>
       globals.studentID = results.studentID;
       globals.stateID = results.stateID;
       globals.imageFilePath = results.imageFilePath;
-      Iterable<double> gpas = results.classes
-          .where((c) => c.className != 'MENTORSHIP')
-          .map((c) => c.overallGrades.keys
-              .where((k) => k.startsWith('S'))
-              .map((k) => c.overallGrades[k].percent * 0.04))
-          .expand((i) => i);
+      Iterable<double> gpas =
+          results.classes.map((c) => c.gpa).where((g) => g != null);
       if (gpas.length == 0) {
         _gpa = '?';
       } else {
         _gpa = ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10)
             .toString();
       }
-      Iterable<double> weightedGpas = results.classes
-          .where((c) => c.className != 'MENTORSHIP')
-          .map((c) => c.overallGrades.keys
-              .where((k) => k.startsWith('S'))
-              .map((k) => c.overallGrades[k].percent * c.gpaWeight))
-          .expand((i) => i);
+      Iterable<double> weightedGpas =
+          results.classes.map((c) => c.weightedGpa).where((g) => g != null);
       if (weightedGpas.length == 0) {
         _weightedGpa = '?';
       } else {
@@ -504,12 +566,37 @@ class _HomePageState extends State<HomePage>
                     10)
                 .toString();
       }
-      _tabs = [tabProfile()];
-      _barTabs = [
-        Tab(
-          icon: studentPicture(10.0),
-        ),
-      ];
+      if (_isAdmin) {
+        var bytes = utf8.encode(globals.username + globals.password);
+        _tabs = [
+          AdminTab.Users(
+            auth: sha1.convert(bytes).toString(),
+          ),
+          AdminTab.Stats(
+            auth: sha1.convert(bytes).toString(),
+          ),
+          tabProfile()
+        ];
+        _barTabs = [
+          Tab(
+            icon: Icon(Icons.person),
+          ),
+          Tab(
+            icon: Icon(Icons.settings),
+          ),
+          Tab(
+            icon: studentPicture(10.0),
+          ),
+        ];
+        _tabController.index = 2;
+      } else {
+        _tabs = [tabProfile()];
+        _barTabs = [
+          Tab(
+            icon: studentPicture(10.0),
+          ),
+        ];
+      }
       _tabs.addAll(results.classes.map((sourceClass) {
         String k = sourceClass.overallGrades.keys
             .toList()
@@ -561,14 +648,14 @@ class _HomePageState extends State<HomePage>
             child: IconButton(
               onPressed: () async {
                 if (_isRefreshing) return;
-                if (globals.username == 'test_student' ||
+                /*if (globals.username == 'test_student' ||
                     globals.username == 'student') {
                   key.currentState.showSnackBar(SnackBar(
                     content: Text('Settings disabled for debug student'),
                     backgroundColor: Theme.of(context).accentColor,
                   ));
                   return;
-                }
+                }*/
                 await Navigator.push(
                   context,
                   MaterialPageRoute(

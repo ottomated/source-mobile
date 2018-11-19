@@ -97,7 +97,7 @@ class SettingsPageState extends State<SettingsPage> {
     return true;
   }
 
-  List<Widget> _topOfSettings() {
+  List<Widget> _topOfSettings(BuildContext pageContext) {
     return [
       ListTile(
         title: Text('Logged in as ${globals.username}'),
@@ -106,7 +106,7 @@ class SettingsPageState extends State<SettingsPage> {
           showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (context) {
+            builder: (dcontext) {
               return AlertDialog(
                 title: Text('Log Out'),
                 content: Text('Are you sure you want to log out?'),
@@ -114,13 +114,14 @@ class SettingsPageState extends State<SettingsPage> {
                   FlatButton(
                     child: Text('Cancel'),
                     onPressed: () {
-                      Navigator.of(context).pop();
+                      Navigator.of(dcontext).pop();
                     },
                   ),
                   FlatButton(
                     child: Text('Log Out'),
                     onPressed: () async {
-                      bool success = await _makeRequest(
+                      Navigator.pop(pageContext);
+                      await _makeRequest(
                         'https://ottomated.net/source/deregister',
                         {'token': widget.firebaseToken},
                       );
@@ -131,14 +132,9 @@ class SettingsPageState extends State<SettingsPage> {
                       prefs.setString('b', '');
                       await _prefs.remove('notify_enabled');
                       await _prefs.remove('notify_class_settings');
-
-                      Navigator.of(context).pop();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LoginPage(),
-                        ),
-                      );
+                      await _prefs.remove('results');
+                      globals.cameBackFromSettingsRefresh = true;
+                      Navigator.pop(pageContext);
                     },
                   ),
                 ],
@@ -235,10 +231,10 @@ class SettingsPageState extends State<SettingsPage> {
 
     Widget page = Center(
       child: ListView(
-        children: List.from(_topOfSettings())
+        children: List.from(_topOfSettings(context))
           ..addAll(
             widget.classes.map((c) {
-              if (c.categories.length > 0) {
+              if (c.categories.length > 0 && _localPrefs[c.className].runtimeType != bool) {
                 return ExpansionTile(
                   title: Text(c.classNameCased),
                   children: c.categories.map((cat) {

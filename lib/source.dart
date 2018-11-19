@@ -76,6 +76,26 @@ class SourceClass {
     });
   }
 
+  double get gpa {
+    Iterable<double> gpas = this
+        .overallGrades
+        .keys
+        .where((k) => k.startsWith('S'))
+        .map((k) => this.overallGrades[k].gpa);
+    if (gpas.length == 0) return null;
+    return ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10);
+  }
+
+  double get weightedGpa {
+    Iterable<double> gpas = this
+        .overallGrades
+        .keys
+        .where((k) => k.startsWith('S'))
+        .map((k) => this.overallGrades[k].gpa * this.gpaWeight);
+    if (gpas.length == 0) return null;
+    return ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10);
+  }
+
   SourceClass(
       {this.className,
       this.period,
@@ -87,15 +107,15 @@ class SourceClass {
       this.categories}) {
     Iterable<String> nameWords = this.className.split(' ');
     if (nameWords.contains('AP')) {
-      this.gpaWeight = 0.05;
+      this.gpaWeight = 1.25;
     } else if ('' !=
         nameWords.firstWhere(
             (w) =>
                 w == 'H' || w.startsWith((RegExp(r'[0-9]'))) && w.endsWith('H'),
             orElse: () => '')) {
-      this.gpaWeight = 0.045;
+      this.gpaWeight = 1.125;
     } else {
-      this.gpaWeight = 0.04;
+      this.gpaWeight = 1;
     }
   }
   @override
@@ -222,25 +242,29 @@ class SourceClassGrade {
   String letter;
   double percent;
   int color;
-  Map<double, Tuple2<String, int>> _letterValues = {
-    92.5: Tuple2('A', 0xFF87BD6C),
-    89.5: Tuple2('A-', 0xFF87BD6C),
-    86.5: Tuple2('B+', 0xFFCFE7FF),
-    82.5: Tuple2('B', 0xFFCFE7FF),
-    79.5: Tuple2('B-', 0xFFCFE7FF),
-    76.5: Tuple2('C+', 0xFFFFFF8D),
-    72.5: Tuple2('C', 0xFFFFFF8D),
-    69.5: Tuple2('C-', 0xFFFFFF8D),
-    66.5: Tuple2('D+', 0xFFF9AC48),
-    59.5: Tuple2('D', 0xFFF9AC48),
-    0.0: Tuple2('E', 0xFFEF3D3D),
+  double gpa;
+
+  Map<double, Tuple3<String, int, double>> _letterValues = {
+    92.5: Tuple3('A', 0xFF87BD6C, 4.0),
+    89.5: Tuple3('A-', 0xFF87BD6C, 3.7),
+    86.5: Tuple3('B+', 0xFFCFE7FF, 3.3),
+    82.5: Tuple3('B', 0xFFCFE7FF, 3.0),
+    79.5: Tuple3('B-', 0xFFCFE7FF, 2.7),
+    76.5: Tuple3('C+', 0xFFFFFF8D, 2.3),
+    72.5: Tuple3('C', 0xFFFFFF8D, 2.0),
+    69.5: Tuple3('C-', 0xFFFFFF8D, 1.7),
+    66.5: Tuple3('D+', 0xFFF9AC48, 1.3),
+    59.5: Tuple3('D', 0xFFF9AC48, 1.0),
+    0.0: Tuple3('E', 0xFFEF3D3D, 0.0),
   };
+
   SourceClassGrade(double percent) {
     this.percent = percent;
     for (double high in _letterValues.keys) {
       if (percent >= high) {
         this.letter = _letterValues[high].item1;
         this.color = _letterValues[high].item2;
+        this.gpa = _letterValues[high].item3;
         break;
       }
     }
@@ -249,6 +273,7 @@ class SourceClassGrade {
     this.letter = 'P';
     this.color = 0xFF628D62;
     this.percent = percent;
+    this.gpa = 4.0;
   }
   @override
   String toString() {
