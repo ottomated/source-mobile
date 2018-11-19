@@ -23,6 +23,9 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.1.5
+    * Added custom analytics and admin panel
+    * Actually parsing GPAs by letter instead of percent
 * 1.1.3
     * Actually parsing P grades instead of ignoring them
     * Made the bug report system better and actually working on iOS
