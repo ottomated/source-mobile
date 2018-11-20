@@ -23,6 +23,8 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.1.6
+    * Added update checking
 * 1.1.5
     * Added custom analytics and admin panel
     * Actually parsing GPAs by letter instead of percent
