@@ -22,6 +22,7 @@ dependencies:
   tuple: any
   get_version: any
   flutter_circular_chart: ^0.1.0
+  launch_review: any
 
 dev_dependencies:
   flutter_test:

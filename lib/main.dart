@@ -9,6 +9,7 @@ import 'login.dart';
 import 'settings.dart';
 import 'admin.dart';
 
+import 'package:launch_review/launch_review.dart';
 import 'package:get_version/get_version.dart';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -354,11 +355,49 @@ class _HomePageState extends State<HomePage>
         ];
       }
     }
+    _checkVersion();
+
     if (analyticsTimer == null)
       analyticsTimer = Timer.periodic(Duration(seconds: 30), (Timer t) {
         if (_results != null) postAnalytics(_results);
       });
     _doQuickRefresh();
+  }
+
+  Future<void> _checkVersion() async {
+    String currentVersion = await GetVersion.projectVersion;
+
+    http.Response r;
+    Map js;
+    try {
+      r = await http.post(
+        'https://ottomated.net/source/version',
+        body: json.encode({'version': currentVersion}),
+      );
+      js = json.decode(r.body);
+    } catch (e) {
+      Fluttertoast.showToast(msg: e.toString());
+      return;
+    }
+    if (r.statusCode == 200) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+              title: Text('Update Required'),
+              content: Text(
+                  '$currentVersion => ${js['versionCode']}\n${js['changes']}'),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text('Visit App Store'),
+                  onPressed: () async {
+                    await LaunchReview.launch();
+                  },
+                ),
+              ],
+            ),
+      );
+    }
   }
 
   Future<void> _doQuickRefresh() async {
@@ -530,7 +569,6 @@ class _HomePageState extends State<HomePage>
       );
       return;
     }
-    postAnalytics(results);
     var prefs = await SharedPreferences.getInstance();
     //print(results.classes[0].assignments);
 
@@ -540,6 +578,7 @@ class _HomePageState extends State<HomePage>
 
   SourceResults _results;
   Future<void> _performDoRefresh(SourceResults results) async {
+    postAnalytics(results);
     _results = results;
     setState(() {
       globals.name = results.name;
