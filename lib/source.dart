@@ -485,21 +485,27 @@ class Source {
       String name = row.children[2].text;
       res.errorID += '\nParsing grade ' + row.children[8].text;
       List<String> grade = row.children[8].text.split('/');
+      List<double> parsedGrade = [0, 0];
       bool graded = true;
       if (grade.length == 1) grade.add('0');
-      if (grade[0] == '--' || grade[0] == 'Score Not Published') {
+      try {
+        parsedGrade[0] = double.parse(grade[0]);
+      } catch (e) {
         graded = false;
-        grade[0] = '0';
       }
+      try {
+        parsedGrade[1] = double.parse(grade[1]);
+      } catch (e) {}
       res.errorID += '\nParsing date $date';
       DateTime dueDate = _parseDateTime(date);
 
-      res.errorID += '\nConstructing ass: grade: $grade';
+      res.errorID += '\nConstructing ass: grade: $grade -> $parsedGrade';
+
       //print('${dueDate} ${middle} ${qnames}');
       SourceAssignment ass = SourceAssignment(
           dueDate: dueDate,
           grade: SourceAssignmentGrade(
-              double.parse(grade[0]), double.parse(grade[1]), graded),
+              parsedGrade[0], parsedGrade[1], graded),
           category: cats.firstWhere(
             (c) => c.id == category,
             orElse: () => SourceCategory(id: '', name: '', weight: 0.0),
@@ -748,8 +754,12 @@ class Source {
       body = await response.stream.transform(utf8.decoder).join();
       // Extract photo url
       RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
-      String studentPhotoUrl = 'https://ps.seattleschools.org' +
-          studentPhotoRgx.firstMatch(body).group(1);
+      String studentPhotoUrl =
+          'https://p8cdn4static.sharpschool.com/UserFiles/Servers/Server_543/Templates/seattle-logo.png';
+      if (studentPhotoRgx.hasMatch(body)) {
+        studentPhotoUrl = 'https://ps.seattleschools.org' +
+            studentPhotoRgx.firstMatch(body).group(1);
+      }
 
       res.errorID += '\nGetting full name';
       // Extract full name

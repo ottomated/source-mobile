@@ -182,13 +182,10 @@ class PieChart extends StatelessWidget {
   final String prop;
   final List<Color> colors = [
     Colors.red,
-    Colors.amber,
     Colors.orange,
     Colors.yellow,
-    Colors.lime,
     Colors.green,
     Colors.teal,
-    Colors.lightBlue,
     Colors.blue,
     Colors.purple,
     Colors.brown,

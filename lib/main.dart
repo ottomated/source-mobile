@@ -538,35 +538,60 @@ class _HomePageState extends State<HomePage>
       );
       return;
     } else if (results.runtimeType != SourceResults) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text("Exception"),
-            content: Text(
-              results[1].toString(),
-            ),
-            actions: <Widget>[
-              FlatButton(
-                child: Text('Submit bug report'),
-                onPressed: () async {
-                  bool success = await makePOST(
+      if (results[1].runtimeType == SocketException) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text("Internet connection failed"),
+              content: Text(
+                results[1].toString(),
+              ),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text('Okay'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                )
+              ],
+            );
+          },
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text('Exception'),
+              content: Text(
+                results[1].toString(),
+              ),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text('Submit bug report'),
+                  onPressed: () async {
+                    bool success = await makePOST(
                       'https://ottomated.net/source/bugreport',
                       {
-                        'source': json.encode(results[0]),
                         'error': results[1].toString(),
                         'trace': results[2].toString(),
+                        'system': Platform.operatingSystem,
+                        'version': await GetVersion.platformVersion,
+                        'source': json.encode(results[0]),
                       },
-                      true);
-                  if (success) {
-                    Navigator.of(context).pop();
-                  }
-                },
-              )
-            ],
-          );
-        },
-      );
+                      true,
+                    );
+                    if (success) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                )
+              ],
+            );
+          },
+        );
+      }
       return;
     }
     var prefs = await SharedPreferences.getInstance();
@@ -699,7 +724,11 @@ class _HomePageState extends State<HomePage>
                   context,
                   MaterialPageRoute(
                     builder: (context) => SettingsPage(
-                          classes: _results == null ? [] : _results.classes,
+                          classes: _results == null
+                              ? []
+                              : (_results.classes == null
+                                  ? []
+                                  : _results.classes),
                           firebaseToken: _firebaseToken,
                         ),
                   ),
