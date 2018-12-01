@@ -23,6 +23,10 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.1.8
+    * Catch more internet errors
+* 1.1.7
+    * Fixed various bugs
 * 1.1.6
     * Added update checking
 * 1.1.5

@@ -362,6 +362,11 @@ class _HomePageState extends State<HomePage>
         if (_results != null) postAnalytics(_results);
       });
     _doQuickRefresh();
+    Future.delayed(Duration(seconds: 10), () {
+      Timer.periodic(Duration(seconds: 10), (Timer t) {
+        if (_results == null) _doRefresh();
+      });
+    });
   }
 
   Future<void> _checkVersion() async {
@@ -382,7 +387,7 @@ class _HomePageState extends State<HomePage>
     if (r.statusCode == 200) {
       showDialog(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: true,
         builder: (context) => AlertDialog(
               title: Text('Update Required'),
               content: Text(
@@ -391,7 +396,9 @@ class _HomePageState extends State<HomePage>
                 FlatButton(
                   child: Text('Visit App Store'),
                   onPressed: () async {
-                    await LaunchReview.launch();
+                    await LaunchReview.launch(
+                        androidAppId: 'net.ottomated.sourcemobile',
+                        iOSAppId: '1441562686');
                   },
                 ),
               ],
@@ -453,6 +460,16 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget tabProfile() {
+    if (_results == null) {
+      return Center(
+        child: RaisedButton(
+          child: Text('Refresh'),
+          onPressed: () async {
+            _doRefresh();
+          },
+        ),
+      );
+    }
     return Column(
       children: <Widget>[
         Container(
@@ -544,6 +561,26 @@ class _HomePageState extends State<HomePage>
           builder: (context) {
             return AlertDialog(
               title: Text("Internet connection failed"),
+              content: Text(
+                results[1].toString(),
+              ),
+              actions: <Widget>[
+                FlatButton(
+                  child: Text('Okay'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                )
+              ],
+            );
+          },
+        );
+      } else if (results[2].toString().contains("IOClient.send")) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text("The Source is down."),
               content: Text(
                 results[1].toString(),
               ),
@@ -702,7 +739,7 @@ class _HomePageState extends State<HomePage>
             message: 'Refresh',
             child: IconButton(
               onPressed: () async {
-                _doRefresh();
+                _doQuickRefresh();
               },
               icon: Icon(Icons.refresh),
             ),

@@ -504,8 +504,7 @@ class Source {
       //print('${dueDate} ${middle} ${qnames}');
       SourceAssignment ass = SourceAssignment(
           dueDate: dueDate,
-          grade: SourceAssignmentGrade(
-              parsedGrade[0], parsedGrade[1], graded),
+          grade: SourceAssignmentGrade(parsedGrade[0], parsedGrade[1], graded),
           category: cats.firstWhere(
             (c) => c.id == category,
             orElse: () => SourceCategory(id: '', name: '', weight: 0.0),
@@ -688,7 +687,7 @@ class Source {
       req.headers.addAll({'Cookie': _cookies.toString()});
       response = await _client.send(req);
       if (response.headers['set-cookie'] == null)
-        throw Exception(
+        throw SocketException(
             'The Source is down for maintenance.\nRegular hours:\nWednesday: 10PM - 11PM\nSaturday: 6AM-9AM');
       _cookies.setCookies(response.headers['set-cookie']);
       // Parse out tokens
@@ -698,8 +697,14 @@ class Source {
           RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
       RegExp contextDataRgx = RegExp(
           r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
-      String pstoken = pstokenRgx.firstMatch(body).group(1);
-      String contextData = contextDataRgx.firstMatch(body).group(1);
+      String pstoken, contextData;
+      try {
+        pstoken = pstokenRgx.firstMatch(body).group(1);
+        contextData = contextDataRgx.firstMatch(body).group(1);
+      } catch (e) {
+        throw SocketException(
+            'There\'s a problem that\'s not my fault right now');
+      }
       res.errorID += '\nRequest 4';
       // Login request
       req = http.Request(

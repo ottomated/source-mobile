@@ -62,7 +62,6 @@ class _AdminTabState extends State<AdminTab> {
         List users = json.decode(snapshot.data);
         users.forEach((u) => u['school'] = (u['username'] as String).split('_')[0].toUpperCase());
         if (widget.isUserTab) {
-          print(users);
           return Column(
             children: <Widget>[
               Center(
