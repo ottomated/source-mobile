@@ -23,6 +23,14 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.2
+    * Several tweaks in admin panel
+    * Fixed a bug where I was dependant on there being a grade in Q1 or Q3
+    * Caught a few internet errors
+    * Show GPAs with 2 digits of precision
+    * Update dialog no longer writes a review on iOS
+    * Add Grade Calculator
+    * Add theme switcher
 * 1.1.8
     * Catch more internet errors
 * 1.1.7

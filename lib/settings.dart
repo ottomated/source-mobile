@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'globals.dart' as globals;
 import 'package:http/http.dart' as http;
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:dynamic_theme/dynamic_theme.dart';
 
 class SettingsPage extends StatefulWidget {
   SettingsPage({Key key, this.classes, this.firebaseToken}) : super(key: key);
@@ -81,7 +82,7 @@ class SettingsPageState extends State<SettingsPage> {
       setState(() {
         _working = false;
       });
-      Fluttertoast.showToast(msg: e.toString());
+      Fluttertoast.instance.showToast(msg: e.toString());
       Navigator.pop(context);
       return false;
     }
@@ -89,8 +90,8 @@ class SettingsPageState extends State<SettingsPage> {
       _working = false;
     });
     if (r.statusCode != 404 && r.statusCode != 200) {
-      Fluttertoast.showToast(
-          msg: 'Server Error (Invalid Request ${r.statusCode})');
+      Fluttertoast.instance
+          .showToast(msg: 'Server Error (Invalid Request ${r.statusCode})');
       Navigator.pop(context);
       return false;
     }
@@ -100,8 +101,8 @@ class SettingsPageState extends State<SettingsPage> {
   List<Widget> _topOfSettings(BuildContext pageContext) {
     return [
       ListTile(
-        title: Text('Logged in as ${globals.username}'),
-        subtitle: Text('Log out'),
+        title: Text('Log out'),
+        subtitle: Text('Logged in as ${globals.username}'),
         onTap: () async {
           showDialog(
             context: context,
@@ -142,7 +143,21 @@ class SettingsPageState extends State<SettingsPage> {
             },
           );
         },
-        trailing: Icon(Icons.person_add),
+        trailing: Icon(Icons.exit_to_app),
+      ),
+      Divider(),
+      SwitchListTile(
+        title: Text('Theme'),
+        subtitle: Text(
+            'Current theme is ${DynamicTheme.of(context).brightness == Brightness.dark ? 'dark' : 'light'}'),
+        value: DynamicTheme.of(context).brightness == Brightness.dark,
+        onChanged: (_) {
+          DynamicTheme.of(context).setBrightness(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Brightness.light
+                  : Brightness.dark);
+        },
+        activeColor: Theme.of(context).accentColor,
       ),
       Divider(),
       SwitchListTile(
@@ -234,7 +249,8 @@ class SettingsPageState extends State<SettingsPage> {
         children: List.from(_topOfSettings(context))
           ..addAll(
             widget.classes.map((c) {
-              if (c.categories.length > 0 && _localPrefs[c.className].runtimeType != bool) {
+              if (c.categories.length > 0 &&
+                  _localPrefs[c.className].runtimeType != bool) {
                 return ExpansionTile(
                   title: Text(c.classNameCased),
                   children: c.categories.map((cat) {
@@ -258,11 +274,11 @@ class SettingsPageState extends State<SettingsPage> {
                             }
                           }
                         : null;
-                        //print('$_localPrefs ${c.className} ${cat.id} ${_localPrefs[c.className]}');
+                    //print('$_localPrefs ${c.className} ${cat.id} ${_localPrefs[c.className]}');
                     return InkWell(
                       onTap: () => miniOnChg(!_localPrefs[c.className][cat.id]),
                       child: ListTile(
-                        title: Text(cat.name),
+                        title: Text(' ${cat.name} ${cat.semester}'),
                         dense: true,
                         leading: Padding(
                           padding: EdgeInsets.only(left: 30.0),

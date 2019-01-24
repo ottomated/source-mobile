@@ -1,7 +1,7 @@
 name: source_mobile
 description: A grade viewer for SPS
 
-version: 1.1.8+13
+version: 1.2+14
 
 environment:
   sdk: ">=2.0.0-dev.68.0 <3.0.0"
@@ -22,7 +22,14 @@ dependencies:
   tuple: any
   get_version: any
   flutter_circular_chart: ^0.1.0
-  launch_review: any
+  launch_review:
+    git:
+      url: git://github.com/Purus/launch_review.git
+  duration: any
+
+  dynamic_theme:
+    git:
+      url: git://github.com/Norbert515/dynamic_theme.git
 
 dev_dependencies:
   flutter_test:

@@ -76,6 +76,30 @@ class SourceClass {
     });
   }
 
+  SourceCategory getCategory(SourceAssignment ass) {
+    String sem = ass.quarters.firstWhere(
+      (q) => q.startsWith('S'),
+      orElse: () => 'S1',
+    );
+    return this.categories.firstWhere(
+          (c) => c.id == ass.category && c.semester == sem,
+          orElse: () => SourceCategory(
+                id: ass.category,
+                name: ass.category,
+                semester: sem,
+                weight: 0.0,
+                earned: ass.grade.score,
+                possible: ass.grade.maxScore,
+              ),
+        );
+  }
+  List<SourceCategory> get latestCategories {
+    return this.categories.where((c) => c.semester == this.latestSemester).toList();
+  }
+  String get latestSemester {
+    return this.overallGrades.keys.where((k) => k.startsWith('S')).last;
+  }
+
   double get gpa {
     Iterable<double> gpas = this
         .overallGrades
@@ -83,7 +107,7 @@ class SourceClass {
         .where((k) => k.startsWith('S'))
         .map((k) => this.overallGrades[k].gpa);
     if (gpas.length == 0) return null;
-    return ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10);
+    return gpas.reduce((a, b) => a + b) / gpas.length;
   }
 
   double get weightedGpa {
@@ -93,7 +117,7 @@ class SourceClass {
         .where((k) => k.startsWith('S'))
         .map((k) => this.overallGrades[k].gpa * this.gpaWeight);
     if (gpas.length == 0) return null;
-    return ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10);
+    return gpas.reduce((a, b) => a + b) / gpas.length;
   }
 
   SourceClass(
@@ -136,10 +160,10 @@ class SourceClass {
 @JsonSerializable()
 class SourceAssignment {
   DateTime dueDate;
-  SourceCategory category;
+  String category;
   List<String> quarters;
   String name;
-  List<String> flags;
+  Set<String> flags;
   SourceAssignmentGrade grade;
 
   SourceAssignment(
@@ -154,7 +178,14 @@ class SourceAssignment {
   Map<String, dynamic> toJson() => _$SourceAssignmentToJson(this);
   @override
   String toString() {
-    return 'SourceAssignment[$name, ${category.id}, due $dueDate]: $grade';
+    return 'SourceAssignment[$name, ${category}, due $dueDate]: $grade';
+  }
+
+  String get flag {
+    if (this.flags.contains('Exempt')) return 'Exempt';
+    if (this.flags.contains('Missing')) return 'Missing';
+    if (this.flags.contains('Late')) return 'Late';
+    return '';
   }
 }
 
@@ -317,11 +348,20 @@ class SourceCategory {
   String id;
   String name;
   double weight;
+  String semester;
+  double possible;
+  double earned;
 
-  SourceCategory({this.id, this.name, this.weight});
+  SourceCategory(
+      {this.id,
+      this.name,
+      this.weight,
+      this.semester,
+      this.possible,
+      this.earned});
   @override
   String toString() {
-    return 'SourceCategory[${name} (${id}: ${weight}%]';
+    return 'SourceCategory[$name ($id: $weight%) ($earned/$possible)]';
   }
 
   factory SourceCategory.fromJson(Map<String, dynamic> json) =>
@@ -383,10 +423,16 @@ class Source {
           else
             grades[overallNames[i]] = (SourceClassGrade(p));
           if (overallNames[i] == 'Q1' || overallNames[i] == 'Q3') {
-            res.errorID += '\nParsing datetime ' + gradeEl.text;
+            res.errorID += '\nParsing middle ' + gradeEl.text;
             middle = _parseDateTime(
                 Uri.parse(gradeEl.querySelector('a').attributes['href'])
                     .queryParameters['enddate']
+                    .split('/'));
+          } else if (overallNames[i] == 'Q2' || overallNames[i] == 'Q2') {
+            res.errorID += '\nParsing middle ' + gradeEl.text;
+            middle = _parseDateTime(
+                Uri.parse(gradeEl.querySelector('a').attributes['href'])
+                    .queryParameters['begdate']
                     .split('/'));
           }
           if (overallNames[i].startsWith('S')) {
@@ -467,6 +513,9 @@ class Source {
         id: id,
         name: name,
         weight: weight,
+        possible: double.parse(row.children[3].text),
+        earned: double.parse(row.children[4].text),
+        semester: semester,
       ));
     }
 
@@ -480,7 +529,6 @@ class Source {
       res.errorID += '\nGetting date ' + row.children[0].text;
       List<String> date = row.children[0].text.split('/');
       if (date.length == 1) continue;
-      //SourceAssignmentGrade grade = SourceAssignmentGrade(9.0, 10.0);
       String category = row.children[1].text;
       String name = row.children[2].text;
       res.errorID += '\nParsing grade ' + row.children[8].text;
@@ -501,21 +549,37 @@ class Source {
 
       res.errorID += '\nConstructing ass: grade: $grade -> $parsedGrade';
 
+      Set<String> flags = Set();
+      const List<String> fConst = [
+        '',
+        '',
+        '',
+        'Collected',
+        'Late',
+        'Missing',
+        'Exempt',
+        'Exempt'
+      ];
+      for (int i = 3; i < 8; i++) {
+        if (row.children[i].hasChildNodes()) flags.add(fConst[i]);
+      }
+
       //print('${dueDate} ${middle} ${qnames}');
       SourceAssignment ass = SourceAssignment(
           dueDate: dueDate,
           grade: SourceAssignmentGrade(parsedGrade[0], parsedGrade[1], graded),
-          category: cats.firstWhere(
-            (c) => c.id == category,
-            orElse: () => SourceCategory(id: '', name: '', weight: 0.0),
-          ),
+          category: category,
           name: name,
           quarters: [
             semester,
             dueDate.isAfter(middle) ? qnames.item2 : qnames.item1
-          ]);
+          ],
+          flags: flags);
       asses.add(ass);
     }
+    cats.forEach((c) {
+      if (c.weight == 0.0) c.weight = 100.0 / cats.length;
+    });
     return Tuple2(asses, cats);
   }
 
@@ -587,21 +651,19 @@ class Source {
           },
           assignments: [
             SourceAssignment(
-              category:
-                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
+              category: 'HW',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(10.0, 10.0, true),
               name: 'Homework 1',
             ),
             SourceAssignment(
-              category: SourceCategory(id: 'TST', name: 'Tests', weight: 50.0),
+              category: 'TST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(87.0, 100.0, true),
               name: 'Unit Test',
             ),
             SourceAssignment(
-              category:
-                  SourceCategory(id: 'HW', name: 'Homework', weight: 50.0),
+              category: 'HW',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(0.0, 10.0, false),
               name: 'Homework 2',
@@ -620,36 +682,31 @@ class Source {
           },
           assignments: [
             SourceAssignment(
-              category: SourceCategory(
-                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
+              category: 'TEST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(100.0, 100.0, true),
               name: 'Unit 1',
             ),
             SourceAssignment(
-              category: SourceCategory(
-                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
+              category: 'TEST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(80.0, 100.0, true),
               name: 'Unit 2',
             ),
             SourceAssignment(
-              category: SourceCategory(
-                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
+              category: 'TEST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(70.0, 100.0, true),
               name: 'Unit 3',
             ),
             SourceAssignment(
-              category: SourceCategory(
-                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
+              category: 'TEST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(60.0, 100.0, true),
               name: 'Unit 4',
             ),
             SourceAssignment(
-              category: SourceCategory(
-                  id: 'TEST', name: 'Tests/Quizzes', weight: 50.0),
+              category: 'TEST',
               dueDate: DateTime.now(),
               grade: SourceAssignmentGrade(50.0, 100.0, true),
               name: 'Unit 5',
@@ -716,6 +773,9 @@ class Source {
       });
       req.body = generateLoginBody(username, password, pstoken, contextData);
       response = await _client.send(req);
+      if (response.headers['set-cookie'] == null)
+        throw SocketException(
+            'There\'s a problem that\'s not my fault right now');
       _cookies.setCookies(response.headers['set-cookie']);
       res.errorID += '\nRequest 5';
       // Get page html

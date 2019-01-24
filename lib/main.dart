@@ -8,6 +8,7 @@ import 'source.dart';
 import 'login.dart';
 import 'settings.dart';
 import 'admin.dart';
+import 'predict.dart';
 
 import 'package:launch_review/launch_review.dart';
 import 'package:get_version/get_version.dart';
@@ -17,6 +18,7 @@ import 'globals.dart' as globals;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:http/http.dart' as http;
 
 final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
@@ -41,13 +43,13 @@ Future<bool> makePOST(String url, Map body, bool showErrors) async {
       body: json.encode(body),
     );
   } catch (e) {
-    if (showErrors) Fluttertoast.showToast(msg: e.toString());
+    if (showErrors) Fluttertoast.instance.showToast(msg: e.toString());
     return false;
   }
   if (r.statusCode != 404 && r.statusCode != 200) {
     if (showErrors)
-      Fluttertoast.showToast(
-          msg: 'Server Error (Invalid Request ${r.statusCode})');
+      Fluttertoast.instance
+          .showToast(msg: 'Server Error (Invalid Request ${r.statusCode})');
   }
   return true;
 }
@@ -62,15 +64,18 @@ Future<bool> postAnalytics(SourceResults res) async {
             (c) => {
                   'name': c.classNameCased,
                   'teacher': c.teacherName,
-                  'period': c.period
+                  'period': c.period,
+                  'room': c.roomNumber
                 },
           )
           .toList(),
       "sUsername": globals.username,
-      "name": globals.name.join(' '),
-      "grade": globals.grade,
+      "name": res.name.join(' '),
+      "grade": res.grade,
       "system": Platform.operatingSystem,
-      "version": await GetVersion.projectVersion
+      "version": await GetVersion.projectVersion,
+      "gpa": globals.gpa,
+      "weightedGpa": globals.weightedGpa
     },
     false,
   );
@@ -97,108 +102,144 @@ class _ClassTabState extends State<ClassTab> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.all(16.0),
-      child: Column(
-        children: <Widget>[
-          Center(
-            child: Text(
-              widget.sourceClass.classNameCased,
-              style: TextStyle(fontSize: 24.0),
-            ),
-          ),
-          Center(
-            child: InkWell(
-              onTap: () {
-                return showDialog<Null>(
-                  context: context,
-                  barrierDismissible: true,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: Text('Teacher Info'),
-                      content: SingleChildScrollView(
-                        child: ListBody(
-                          children: <Widget>[
-                            Text('Name: ${widget.sourceClass.teacherName}'),
-                            InkWell(
-                              onTap: () async {
-                                await launch('mailto:' +
-                                    widget.sourceClass.teacherEmail);
-                              },
-                              child: Text(
-                                  'Email: ${widget.sourceClass.teacherEmail}'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      actions: <Widget>[
-                        FlatButton(
-                          child: Text('OK'),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-              child: Text(
-                widget.sourceClass.teacherName,
-                style: TextStyle(fontSize: 18.0),
+      child: Stack(
+        children: [
+          Visibility(
+            child: Positioned(
+              right: 0,
+              top: 0,
+              child: IconButton(
+                icon: Icon(Icons.assignment_returned),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          PredictPage(sourceClass: widget.sourceClass),
+                    ),
+                  );
+                },
               ),
             ),
+            visible: widget.sourceClass.assignments.length > 0 &&
+                widget.sourceClass.categories.length > 0,
           ),
-          Flexible(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: widget.sourceClass.overallGrades.keys.map((q) {
-                return Container(
-                  padding: EdgeInsets.all(4.0),
-                  child: ChoiceChip(
-                    selectedColor: Colors.white,
-                    selected: _selectedChip == q,
-                    onSelected: (_) {
-                      if (_selectedChip == q)
-                        setState(() {
-                          _selectedChip = '';
-                        });
-                      else
-                        setState(() {
-                          _selectedChip = q;
-                        });
-                    },
-                    backgroundColor:
-                        Color(widget.sourceClass.overallGrades[q].color),
-                    label: RichText(
-                      text: TextSpan(
-                        text: q,
-                        style: TextStyle(
-                            color: Colors.black, fontWeight: FontWeight.bold),
-                        children: [
-                          TextSpan(
-                            text:
-                                ': ${widget.sourceClass.overallGrades[q].letter}',
-                            style: TextStyle(
-                                fontWeight: FontWeight.normal, fontSize: 15.0),
+          Column(
+            children: <Widget>[
+              Center(
+                child: Text(
+                  widget.sourceClass.classNameCased,
+                  style: TextStyle(fontSize: 24.0),
+                ),
+              ),
+              Center(
+                child: InkWell(
+                  onTap: () {
+                    return showDialog<Null>(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text('Teacher Info'),
+                          content: SingleChildScrollView(
+                            child: ListBody(
+                              children: <Widget>[
+                                Text('Name: ${widget.sourceClass.teacherName}'),
+                                InkWell(
+                                  onTap: () async {
+                                    await launch('mailto:' +
+                                        widget.sourceClass.teacherEmail);
+                                  },
+                                  child: Text(
+                                      'Email: ${widget.sourceClass.teacherEmail}'),
+                                ),
+                              ],
+                            ),
                           ),
-                          TextSpan(
-                            text:
-                                '  ${widget.sourceClass.overallGrades[q].percent.round()}%',
-                            style: TextStyle(
-                                fontWeight: FontWeight.normal, fontSize: 13.0),
-                          )
-                        ],
-                      ),
-                    ),
+                          actions: <Widget>[
+                            FlatButton(
+                              child: Text('OK'),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  child: Text(
+                    widget.sourceClass.teacherName,
+                    style: TextStyle(fontSize: 18.0),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
-          // Assignments
-          _makeAssignmentTable(widget.sourceClass, _selectedChip),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: widget.sourceClass.overallGrades.keys.map((q) {
+                    return Container(
+                      padding: EdgeInsets.all(4.0),
+                      child: ChoiceChip(
+                        selectedColor: Colors.white,
+                        selected: _selectedChip == q,
+                        onSelected: (_) {
+                          if (_selectedChip == q)
+                            setState(() {
+                              _selectedChip = '';
+                            });
+                          else
+                            setState(() {
+                              _selectedChip = q;
+                            });
+                        },
+                        backgroundColor:
+                            Color(widget.sourceClass.overallGrades[q].color),
+                        label: RichText(
+                          text: TextSpan(
+                            text: q,
+                            style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold),
+                            children: [
+                              TextSpan(
+                                text:
+                                    ': ${widget.sourceClass.overallGrades[q].letter}',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 15.0),
+                              ),
+                              TextSpan(
+                                text:
+                                    '  ${widget.sourceClass.overallGrades[q].percent.round()}%',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 13.0),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              // Assignments
+              _makeAssignmentTable(widget.sourceClass, _selectedChip),
+            ],
+          )
         ],
       ),
     );
+  }
+
+  Icon _iconForFlag(String flag) {
+    if (flag == 'Exempt') return Icon(Icons.assignment, color: Colors.grey);
+    if (flag == 'Missing')
+      return Icon(Icons.assignment_late, color: Colors.red);
+    if (flag == 'Late')
+      return Icon(Icons.assignment_late, color: Colors.yellow);
+    return Icon(Icons.assignment);
   }
 
   Widget _makeAssignmentTable(SourceClass sourceClass, String quarter) {
@@ -206,6 +247,11 @@ class _ClassTabState extends State<ClassTab> {
     if (asses == null) asses = [];
     if (quarter != '' && quarter != null)
       asses = asses.where((ass) => ass.quarters.contains(quarter)).toList();
+    if (asses.length == 0)
+      return Expanded(
+        flex: 5,
+        child: Text('emptiness', style: TextStyle(color: Colors.grey)),
+      );
     return Expanded(
       flex: 5,
       child: ListView(
@@ -213,23 +259,44 @@ class _ClassTabState extends State<ClassTab> {
         children: asses.reversed.map((ass) {
           return ExpandingCard(
             top: ListTile(
-              leading: ass.grade.percent > 50.0
-                  ? Icon(Icons.assignment)
-                  : Icon(Icons.assignment_late),
+              leading: _iconForFlag(ass.flag),
               title: Text(ass.name),
-              trailing: Text(
-                ass.grade.letter,
-                style: TextStyle(
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.bold,
-                  color: Color(ass.grade.color),
-                ),
-              ),
+              trailing: DynamicTheme.of(context).brightness == Brightness.dark
+                  ? Text(
+                      ass.grade.letter,
+                      style: TextStyle(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: ass.flag == 'Exempt'
+                            ? Colors.grey
+                            : Color(ass.grade.color),
+                      ),
+                    )
+                  : Container(
+                      alignment: Alignment.center,
+                      width: 30.0,
+                      height: 30.0,
+                      decoration: BoxDecoration(
+                        color: ass.flag == 'Exempt'
+                            ? Colors.grey
+                            : Color(ass.grade.color),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        ass.grade.letter,
+                        style: TextStyle(
+                          fontSize: 18.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
             ),
             bottom: ListTile(
               subtitle: Text(
-                  '${ass.category.name.length > 25 ? ass.category.name.substring(0, 25) + '...' : ass.category.name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
-              title: Text('${ass.grade.fancyScore}'),
+                  '${sourceClass.getCategory(ass).name.length > 25 ? sourceClass.getCategory(ass).name.substring(0, 25) + '...' : sourceClass.getCategory(ass).name}\n${ass.dueDate.month}/${ass.dueDate.day}/${ass.dueDate.year}'),
+              title: Text(
+                  '${ass.grade.fancyScore}${ass.flag == '' ? '' : ' (' + ass.flag + ')'}'),
               trailing: Text(ass.grade.graded ? '${ass.grade.percent}%' : '',
                   style: TextStyle(fontSize: 17.0)),
             ),
@@ -263,26 +330,33 @@ class SourceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var loggedIn = _checkLoggedIn();
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'The Source',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        accentColor: Colors.blueAccent,
-        brightness: Brightness.dark,
-      ),
-      home: FutureBuilder(
-        future: loggedIn,
-        builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return CircularProgressIndicator();
-          }
-          if (snapshot.data == '0') {
-            return LoginPage();
-          }
-          return HomePage();
-        },
-      ),
+    return DynamicTheme(
+      defaultBrightness: Brightness.dark,
+      data: (brightness) => ThemeData(
+            primarySwatch: Colors.blue,
+            accentColor: Colors.blueAccent,
+            brightness: brightness,
+            primaryColor: Color.fromRGBO(33, 33, 33, 1),
+          ),
+      themedWidgetBuilder: (context, theme) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'The Source',
+          theme: theme,
+          home: FutureBuilder(
+            future: loggedIn,
+            builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return CircularProgressIndicator();
+              }
+              if (snapshot.data == '0') {
+                return LoginPage();
+              }
+              return HomePage();
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -298,7 +372,7 @@ class _HomePageState extends State<HomePage>
   TabController _tabController;
   List<Widget> _tabs = [];
   List<Tab> _barTabs = [];
-  String _gpa = '';
+  String gpa = '';
   bool get _isAdmin {
     var bytes = utf8.encode(globals.username);
     if (sha1.convert(bytes).toString() ==
@@ -308,7 +382,7 @@ class _HomePageState extends State<HomePage>
       return false;
   }
 
-  String _weightedGpa = '';
+  String weightedGpa = '';
   GlobalKey<ScaffoldState> key;
   Map<String, String> selectedChips = {};
   Timer analyticsTimer = null;
@@ -381,7 +455,7 @@ class _HomePageState extends State<HomePage>
       );
       js = json.decode(r.body);
     } catch (e) {
-      Fluttertoast.showToast(msg: e.toString());
+      Fluttertoast.instance.showToast(msg: e.toString());
       return;
     }
     if (r.statusCode == 200) {
@@ -398,7 +472,8 @@ class _HomePageState extends State<HomePage>
                   onPressed: () async {
                     await LaunchReview.launch(
                         androidAppId: 'net.ottomated.sourcemobile',
-                        iOSAppId: '1441562686');
+                        iOSAppId: '1441562686',
+                        writeReview: false);
                   },
                 ),
               ],
@@ -505,7 +580,7 @@ class _HomePageState extends State<HomePage>
           EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 12.0),
         ),
         Text(
-          'GPA: $_gpa\nweighted: $_weightedGpa',
+          'GPA: $gpa\nweighted: $weightedGpa',
           style: TextStyle(fontSize: 17.0),
           textAlign: TextAlign.center,
         )
@@ -651,21 +726,21 @@ class _HomePageState extends State<HomePage>
       Iterable<double> gpas =
           results.classes.map((c) => c.gpa).where((g) => g != null);
       if (gpas.length == 0) {
-        _gpa = '?';
+        gpa = '?';
       } else {
-        _gpa = ((gpas.reduce((a, b) => a + b) / gpas.length * 10).round() / 10)
-            .toString();
+        double preciseGpa = gpas.reduce((a, b) => a + b) / gpas.length;
+        globals.gpa = preciseGpa;
+        gpa = preciseGpa.toStringAsPrecision(3);
       }
       Iterable<double> weightedGpas =
           results.classes.map((c) => c.weightedGpa).where((g) => g != null);
       if (weightedGpas.length == 0) {
-        _weightedGpa = '?';
+        weightedGpa = '?';
       } else {
-        _weightedGpa =
-            ((weightedGpas.reduce((a, b) => a + b) / weightedGpas.length * 10)
-                        .round() /
-                    10)
-                .toString();
+        double preciseGpa =
+            weightedGpas.reduce((a, b) => a + b) / weightedGpas.length;
+        globals.weightedGpa = preciseGpa;
+        weightedGpa = preciseGpa.toStringAsPrecision(3);
       }
       if (_isAdmin) {
         var bytes = utf8.encode(globals.username + globals.password);
@@ -689,7 +764,7 @@ class _HomePageState extends State<HomePage>
             icon: studentPicture(10.0),
           ),
         ];
-        _tabController.index = 2;
+        //_tabController.index = 2;
       } else {
         _tabs = [tabProfile()];
         _barTabs = [
@@ -742,6 +817,7 @@ class _HomePageState extends State<HomePage>
                 _doQuickRefresh();
               },
               icon: Icon(Icons.refresh),
+              color: _isRefreshing ? Colors.black : Colors.white,
             ),
           ),
           Tooltip(
@@ -782,6 +858,7 @@ class _HomePageState extends State<HomePage>
                 }
               },
               icon: Icon(Icons.settings),
+              color: _isRefreshing ? Colors.black : Colors.white,
             ),
           ),
         ],
@@ -789,6 +866,7 @@ class _HomePageState extends State<HomePage>
           controller: _tabController,
           tabs: _barTabs,
           isScrollable: true,
+          indicatorColor: DynamicTheme.of(context).brightness == Brightness.dark ? null : Colors.white,
         ),
       ),
       body: Stack(

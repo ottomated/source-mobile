@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_circular_chart/flutter_circular_chart.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:tuple/tuple.dart';
+import 'package:duration/duration.dart';
 
 import 'expanding_card.dart';
 import 'dart:convert';
@@ -32,11 +33,11 @@ class _AdminTabState extends State<AdminTab> {
       r = await http.get('https://ottomated.net/source/admin',
           headers: {'Authentication': widget.auth});
     } catch (e) {
-      Fluttertoast.showToast(msg: e.toString());
+      Fluttertoast.instance.showToast(msg: e.toString());
       return e.toString();
     }
     if (r.statusCode != 404 && r.statusCode != 200) {
-      Fluttertoast.showToast(
+      Fluttertoast.instance.showToast(
           msg: 'Server Error (Invalid Request ${r.statusCode})');
       return 'Status ${r.statusCode}';
     }
@@ -56,22 +57,91 @@ class _AdminTabState extends State<AdminTab> {
         }
         if (!snapshot.data.startsWith('[')) {
           return Center(
-            child: Text(snapshot.data),
+            child: Column(
+              children: <Widget>[
+                Text(snapshot.data),
+                RaisedButton(
+                  child: Text('Refresh'),
+                  onPressed: () async {
+                    setState(() {
+                      _analytics = getAnalytics();
+                    });
+                  },
+                ),
+              ],
+            ),
           );
         }
         List users = json.decode(snapshot.data);
-        users.forEach((u) => u['school'] = (u['username'] as String).split('_')[0].toUpperCase());
+        users.forEach((u) => u['school'] =
+            (u['username'] as String).split('_')[0].toUpperCase());
         if (widget.isUserTab) {
+          ScrollController control = ScrollController();
           return Column(
             children: <Widget>[
-              Center(
-                child: Padding(
-                  child: Text(
-                    'Admin Panel',
-                    style: TextStyle(fontSize: 24.0),
-                  ),
-                  padding: EdgeInsets.all(24.0),
+              Padding(
+                child: Stack(
+                  children: <Widget>[
+                    Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Text(
+                          'Admin Panel',
+                          style: TextStyle(fontSize: 24.0),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0.0,
+                      right: 0.0,
+                      child: IconButton(
+                        icon: Icon(Icons.search),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: true,
+                            builder: (context) {
+                              return AlertDialog(
+                                title: Text('Filter'),
+                                content: Column(
+                                  children: <Widget>[
+                                    Text('Name Filter'),
+                                    TextFormField(),
+                                  ],
+                                ),
+                                actions: <Widget>[
+                                  FlatButton(
+                                    child: Text('Cancel'),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                  FlatButton(
+                                    child: Text('Filter'),
+                                    onPressed: () async {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      top: 0.0,
+                      left: 0.0,
+                      child: IconButton(
+                        icon: Icon(Icons.arrow_downward),
+                        onPressed: () {
+                          control.jumpTo(control.position.maxScrollExtent);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
+                padding: EdgeInsets.all(24.0),
               ),
               Flexible(
                 child: RefreshIndicator(
@@ -82,12 +152,20 @@ class _AdminTabState extends State<AdminTab> {
                     return true;
                   },
                   child: ListView(
+                    controller: control,
                     physics: AlwaysScrollableScrollPhysics(),
                     children: users.map((c) {
-                      String last = DateTime.now()
-                          .difference(DateTime.parse(c['last_online']))
-                          .inSeconds
-                          .toString();
+                      Duration time = DateTime.now().difference(
+                        DateTime.parse(c['last_online']),
+                      );
+                      String last;
+                      if (time > Duration(seconds: 10))
+                        last = prettyDuration(
+                          time,
+                          abbreviated: true,
+                        );
+                      else
+                        last = '0s';
                       return ExpandingCard(
                         top: ListTile(
                           title: Text(c['name']),
@@ -99,7 +177,56 @@ class _AdminTabState extends State<AdminTab> {
                         ),
                         bottom: ListTile(
                           title: Text('${c['system']} ${c['version']}'),
-                          subtitle: Text('Last online: $last seconds ago'),
+                          subtitle: Text('Last online: $last ago'),
+                          trailing: IconButton(
+                            icon: Icon(Icons.info_outline),
+                            onPressed: () {
+                              List<Widget> children = <Widget>[
+                                Text(c['name']),
+                                Text('Grade: ${c['grade']}'),
+                                Text('GPA: ${c['gpa']}'),
+                                Text('Weighted: ${c['weightedGpa']}'),
+                                Text('${c['system']} ${c['version']}'),
+                                Text('Classes:')
+                              ];
+                              json.decode(c['classes']).forEach((c) {
+                                children.add(
+                                  Padding(
+                                    child: Text(
+                                        '${c['period']}: ${c['name']} rm${c['room']}' +
+                                            '\n    ${c['teacher']}'),
+                                    padding: EdgeInsets.only(top: 10.0),
+                                  ),
+                                );
+                              });
+                              showDialog(
+                                context: context,
+                                barrierDismissible: true,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: Text('User ${c['username']}'),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: children,
+                                      ),
+                                    ),
+                                    actions: <Widget>[
+                                      FlatButton(
+                                        child: Text('Close'),
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
                         ),
                       );
                     }).toList(),
@@ -109,7 +236,14 @@ class _AdminTabState extends State<AdminTab> {
             ],
           );
         } else {
-          users.forEach((u) => u['notifications'] = (u['notifications'] as bool) ? 'on' : 'off');
+          users.forEach((u) =>
+              u['notifications'] = (u['notifications'] as bool) ? 'on' : 'off');
+
+          users.forEach((u) {
+            if ((u['school'] as String).contains('@')) {
+              u['school'] = 'EMAIL';
+            }
+          });
 
           int lastDay = users.where((u) {
             return DateTime.now()
@@ -200,11 +334,13 @@ class PieChart extends StatelessWidget {
     int colorIndex = 0;
     stats.forEach((item) {
       int count = statsList.where((i) => i == item).length;
-      under[item] = count;
-      entries.add(
-          CircularSegmentEntry(count.toDouble(), colors[colorIndex], rankKey: item));
-          colorIndex++;
+      entries.add(CircularSegmentEntry(
+          count.toDouble(), colors[colorIndex % colors.length],
+          rankKey: item));
+      colorIndex++;
     });
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    entries.forEach((c) => under[c.rankKey] = c.value.toInt());
     return Tuple2(entries, under);
   }
 
@@ -217,7 +353,7 @@ class PieChart extends StatelessWidget {
 
     Map underMap = t.item2 as Map;
 
-    String under ='${this.prop}\n' + 
+    String under = '${this.prop}\n' +
         underMap.keys.map((name) => '$name: ${underMap[name]}').join('\n');
 
     return Column(

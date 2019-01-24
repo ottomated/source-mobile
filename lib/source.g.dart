@@ -77,11 +77,9 @@ SourceAssignment _$SourceAssignmentFromJson(Map<String, dynamic> json) {
       dueDate: json['dueDate'] == null
           ? null
           : DateTime.parse(json['dueDate'] as String),
-      category: json['category'] == null
-          ? null
-          : SourceCategory.fromJson(json['category'] as Map<String, dynamic>),
+      category: json['category'] as String,
       name: json['name'] as String,
-      flags: (json['flags'] as List)?.map((e) => e as String)?.toList(),
+      flags: (json['flags'] as List)?.map((e) => e as String)?.toSet(),
       grade: json['grade'] == null
           ? null
           : SourceAssignmentGrade.fromJson(
@@ -95,7 +93,7 @@ Map<String, dynamic> _$SourceAssignmentToJson(SourceAssignment instance) =>
       'category': instance.category,
       'quarters': instance.quarters,
       'name': instance.name,
-      'flags': instance.flags,
+      'flags': instance.flags?.toList(),
       'grade': instance.grade
     };
 
@@ -137,12 +135,18 @@ SourceCategory _$SourceCategoryFromJson(Map<String, dynamic> json) {
   return SourceCategory(
       id: json['id'] as String,
       name: json['name'] as String,
-      weight: (json['weight'] as num)?.toDouble());
+      weight: (json['weight'] as num)?.toDouble(),
+      semester: json['semester'] as String,
+      possible: (json['possible'] as num)?.toDouble(),
+      earned: (json['earned'] as num)?.toDouble());
 }
 
 Map<String, dynamic> _$SourceCategoryToJson(SourceCategory instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
-      'weight': instance.weight
+      'weight': instance.weight,
+      'semester': instance.semester,
+      'possible': instance.possible,
+      'earned': instance.earned
     };
