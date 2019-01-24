@@ -451,7 +451,7 @@ class _HomePageState extends State<HomePage>
     try {
       r = await http.post(
         'https://ottomated.net/source/version',
-        body: json.encode({'version': currentVersion}),
+        body: json.encode({'version': currentVersion, 'os': Platform.operatingSystem}),
       );
       js = json.decode(r.body);
     } catch (e) {
@@ -866,7 +866,9 @@ class _HomePageState extends State<HomePage>
           controller: _tabController,
           tabs: _barTabs,
           isScrollable: true,
-          indicatorColor: DynamicTheme.of(context).brightness == Brightness.dark ? null : Colors.white,
+          indicatorColor: DynamicTheme.of(context).brightness == Brightness.dark
+              ? null
+              : Colors.white,
         ),
       ),
       body: Stack(

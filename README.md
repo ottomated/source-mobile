@@ -23,6 +23,8 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.2.1
+    * Fix default brightness
 * 1.2
     * Several tweaks in admin panel
     * Fixed a bug where I was dependant on there being a grade in Q1 or Q3

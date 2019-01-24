@@ -29,7 +29,7 @@ dependencies:
 
   dynamic_theme:
     git:
-      url: git://github.com/Norbert515/dynamic_theme.git
+      url: git://github.com/ottomated/dynamic_theme.git
 
 dev_dependencies:
   flutter_test:
