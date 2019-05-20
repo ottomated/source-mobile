@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'main.dart';
 import 'source.dart';
-import 'globals.dart' as globals;
 import 'package:dynamic_theme/dynamic_theme.dart';
 
 class PredictPage extends StatefulWidget {
@@ -51,9 +48,9 @@ class PredictPageState extends State<PredictPage> {
         ? Colors.white
         : Colors.black;
 
-    String p_from = '?';
-    String p_to = '?';
-    String per_score = '?';
+    String pFrom = '?';
+    String pTo = '?';
+    String perScore = '?';
     if (_maxScore != null) {
       // Sum the weighted score of the other categories
       double otherCategories = widget.sourceClass.latestCategories
@@ -64,14 +61,14 @@ class PredictPageState extends State<PredictPage> {
       double thisCategory = (_selectedCategory.weight / 100) *
           ((_selectedCategory.earned + _pScore) /
               (_selectedCategory.possible + _maxScore));
-      p_from = widget.sourceClass
+      pFrom = widget.sourceClass
               .overallGrades[widget.sourceClass.latestSemester].percent
               .round()
               .toString() +
           '%';
-      p_to = ((otherCategories + thisCategory) * 100).round().toString() + '%';
+      pTo = ((otherCategories + thisCategory) * 100).round().toString() + '%';
       if (_percent != null) {
-        per_score = (((_percent / 100) - otherCategories) /
+        perScore = (((_percent / 100) - otherCategories) /
                         (_selectedCategory.weight / 100) *
                         (_selectedCategory.possible + _maxScore) -
                     _selectedCategory.earned)
@@ -246,7 +243,7 @@ class PredictPageState extends State<PredictPage> {
                     ),
                     children: [
                       TextSpan(
-                        text: p_from,
+                        text: pFrom,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14.0,
@@ -261,7 +258,7 @@ class PredictPageState extends State<PredictPage> {
                         ),
                       ),
                       TextSpan(
-                        text: p_to,
+                        text: pTo,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14.0,
@@ -340,7 +337,7 @@ class PredictPageState extends State<PredictPage> {
                   ),
                   children: [
                     TextSpan(
-                      text: per_score,
+                      text: perScore,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14.0,

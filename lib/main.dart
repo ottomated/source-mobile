@@ -16,23 +16,12 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'globals.dart' as globals;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:http/http.dart' as http;
 
-final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
-String _firebaseToken = '';
-
 void main() {
-  runFirebase();
   runApp(SourceApp());
-}
-
-Future<void> runFirebase() async {
-  _firebaseMessaging.requestNotificationPermissions();
-  _firebaseToken = await _firebaseMessaging.getToken();
-  //print(_firebaseToken);
 }
 
 Future<bool> makePOST(String url, Map body, bool showErrors) async {
@@ -43,13 +32,13 @@ Future<bool> makePOST(String url, Map body, bool showErrors) async {
       body: json.encode(body),
     );
   } catch (e) {
-    if (showErrors) Fluttertoast.instance.showToast(msg: e.toString());
+    if (showErrors) Fluttertoast.showToast(msg: e.toString());
     return false;
   }
   if (r.statusCode != 404 && r.statusCode != 200) {
     if (showErrors)
-      Fluttertoast.instance
-          .showToast(msg: 'Server Error (Invalid Request ${r.statusCode})');
+      Fluttertoast.showToast(
+          msg: 'Server Error (Invalid Request ${r.statusCode})');
   }
   return true;
 }
@@ -58,7 +47,7 @@ Future<bool> postAnalytics(SourceResults res) async {
   return await makePOST(
     'https://ottomated.net/source/science',
     {
-      "token": _firebaseToken,
+      "token": "",
       "classes": res.classes
           .map(
             (c) => {
@@ -366,10 +355,10 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+  AnimationController _controller;
+  Animation _colorTween;
   Source _source = Source();
-  TabController _tabController;
   List<Widget> _tabs = [];
   List<Tab> _barTabs = [];
   String gpa = '';
@@ -385,49 +374,58 @@ class _HomePageState extends State<HomePage>
   String weightedGpa = '';
   GlobalKey<ScaffoldState> key;
   Map<String, String> selectedChips = {};
-  Timer analyticsTimer = null;
+  Timer analyticsTimer;
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
   @override
   void initState() {
     //print("initState");
     super.initState();
+
+    _controller = AnimationController(
+      vsync: this, // the SingleTickerProviderStateMixin
+      duration: Duration(seconds: 10),
+    );
+    _colorTween = ColorTween(begin: Colors.red, end: Colors.green)
+        .animate(_controller);
+        
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    if (_tabController == null) {
-      _tabController = TabController(vsync: this, length: 20);
-      if (_isAdmin) {
-        var bytes = utf8.encode(globals.username + globals.password);
-        _tabs = [
-          AdminTab.Users(
-            auth: sha1.convert(bytes).toString(),
-          ),
-          AdminTab.Stats(
-            auth: sha1.convert(bytes).toString(),
-          ),
-          tabProfile()
-        ];
-        _barTabs = [
-          Tab(
-            icon: Icon(Icons.person),
-          ),
-          Tab(
-            icon: Icon(Icons.settings),
-          ),
-          Tab(
-            icon: studentPicture(10.0),
-          ),
-        ];
-        _tabController.index = 2;
-      } else {
-        _tabs = [tabProfile()];
-        _barTabs = [
-          Tab(
-            icon: studentPicture(10.0),
-          ),
-        ];
-      }
+    if (_isAdmin) {
+      var bytes = utf8.encode(globals.username + globals.password);
+      _tabs = [
+        AdminTab.Users(
+          auth: sha1.convert(bytes).toString(),
+        ),
+        AdminTab.Stats(
+          auth: sha1.convert(bytes).toString(),
+        ),
+        tabProfile()
+      ];
+      _barTabs = [
+        Tab(
+          icon: Icon(Icons.person),
+        ),
+        Tab(
+          icon: Icon(Icons.settings),
+        ),
+        Tab(
+          icon: studentPicture(10.0),
+        ),
+      ];
+    } else {
+      _tabs = [tabProfile()];
+      _barTabs = [
+        Tab(
+          icon: studentPicture(10.0),
+        ),
+      ];
     }
     _checkVersion();
 
@@ -451,11 +449,12 @@ class _HomePageState extends State<HomePage>
     try {
       r = await http.post(
         'https://ottomated.net/source/version',
-        body: json.encode({'version': currentVersion, 'os': Platform.operatingSystem}),
+        body: json.encode(
+            {'version': currentVersion, 'os': Platform.operatingSystem}),
       );
       js = json.decode(r.body);
     } catch (e) {
-      Fluttertoast.instance.showToast(msg: e.toString());
+      Fluttertoast.showToast(msg: e.toString());
       return;
     }
     if (r.statusCode == 200) {
@@ -470,7 +469,7 @@ class _HomePageState extends State<HomePage>
                 FlatButton(
                   child: Text('Visit App Store'),
                   onPressed: () async {
-                    await LaunchReview.launch(
+                    LaunchReview.launch(
                         androidAppId: 'net.ottomated.sourcemobile',
                         iOSAppId: '1441562686',
                         writeReview: false);
@@ -508,12 +507,6 @@ class _HomePageState extends State<HomePage>
         backgroundColor: Colors.transparent,
         backgroundImage: img,
         child: child);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Widget clipboardCopier(String text, Text child, EdgeInsets padding) {
@@ -804,6 +797,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    var _tabController = TabController(vsync: this, length: _barTabs.length);
     key = GlobalKey<ScaffoldState>();
     return Scaffold(
       key: key,
@@ -842,18 +836,11 @@ class _HomePageState extends State<HomePage>
                               : (_results.classes == null
                                   ? []
                                   : _results.classes),
-                          firebaseToken: _firebaseToken,
                         ),
                   ),
                 );
                 if (globals.cameBackFromSettingsRefresh) {
                   globals.cameBackFromSettingsRefresh = false;
-                  var prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('notify_enabled', false);
-                  var keys = prefs.getKeys();
-                  if (keys.contains('notify_class_settings'))
-                    await prefs.remove('notify_class_settings');
-
                   _doRefresh();
                 }
               },
@@ -872,12 +859,12 @@ class _HomePageState extends State<HomePage>
         ),
       ),
       body: Stack(
-        children: _getStackChildren(),
+        children: _getStackChildren(_tabController),
       ),
     );
   }
 
-  List<Widget> _getStackChildren() {
+  List<Widget> _getStackChildren(TabController _tabController) {
     List<Widget> ws = <Widget>[
       TabBarView(
         controller: _tabController,
@@ -886,7 +873,11 @@ class _HomePageState extends State<HomePage>
     ];
     if (_isRefreshing) {
       ws.add(
-        SizedBox(child: LinearProgressIndicator(), height: 2.0),
+        SizedBox(
+            child: LinearProgressIndicator(
+              valueColor: _colorTween,
+            ),
+            height: 2.0),
       );
     }
     return ws;

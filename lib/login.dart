@@ -49,7 +49,7 @@ class LoginPageState extends State<LoginPage> {
                     return AlertDialog(
                       title: Text('Information'),
                       content: Text(
-                          'Please enter your source credentials. Unless you enable push notifications, they will only be stored on your device.'),
+                          'Please enter your source credentials. They will ONLY be stored on your device, nobody else will be able to see them no matter what.'),
                       actions: <Widget>[
                         FlatButton(
                           child: Text('Okay'),

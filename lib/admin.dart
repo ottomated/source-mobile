@@ -33,11 +33,11 @@ class _AdminTabState extends State<AdminTab> {
       r = await http.get('https://ottomated.net/source/admin',
           headers: {'Authentication': widget.auth});
     } catch (e) {
-      Fluttertoast.instance.showToast(msg: e.toString());
+      Fluttertoast.showToast(msg: e.toString());
       return e.toString();
     }
     if (r.statusCode != 404 && r.statusCode != 200) {
-      Fluttertoast.instance.showToast(
+      Fluttertoast.showToast(
           msg: 'Server Error (Invalid Request ${r.statusCode})');
       return 'Status ${r.statusCode}';
     }

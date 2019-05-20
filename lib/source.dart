@@ -178,7 +178,7 @@ class SourceAssignment {
   Map<String, dynamic> toJson() => _$SourceAssignmentToJson(this);
   @override
   String toString() {
-    return 'SourceAssignment[$name, ${category}, due $dueDate]: $grade';
+    return 'SourceAssignment[$name, $category, due $dueDate]: $grade';
   }
 
   String get flag {
