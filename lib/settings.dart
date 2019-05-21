@@ -76,6 +76,14 @@ class SettingsPageState extends State<SettingsPage> {
         activeColor: Theme.of(context).accentColor,
       ),
       Divider(),
+      ListTile(
+        dense: true,
+        title: Text(
+          'Due to a request from the school district, notifications have been removed from the app.',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      )
     ];
   }
 

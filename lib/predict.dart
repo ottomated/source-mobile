@@ -128,6 +128,12 @@ class PredictPageState extends State<PredictPage> {
                       focusNode: _maxScoreFocus,
                       textAlign: TextAlign.center,
                       keyboardType: TextInputType.number,
+                      onTap: () {
+                        _maxScoreController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _maxScoreController.value.text.length,
+                        );
+                      },
                       onChanged: (s) {
                         int maxScore = (double.tryParse(s) ?? -1).round();
 

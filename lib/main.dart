@@ -19,6 +19,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_sequence_animation/flutter_sequence_animation.dart';
 
 void main() {
   runApp(SourceApp());
@@ -305,7 +306,12 @@ class _ClassTabState extends State<ClassTab> {
 class SourceApp extends StatelessWidget {
   Future<String> _checkLoggedIn() async {
     var prefs = await SharedPreferences.getInstance();
-    if (!prefs.getKeys().contains('a') || !prefs.getKeys().contains('b')) {
+    var keys = prefs.getKeys();
+    if (!keys.contains('hasClickedToCopy')) {
+      await prefs.setBool('hasClickedToCopy', globals.hasClickedToCopy);
+    }
+    globals.hasClickedToCopy = prefs.getBool('hasClickedToCopy');
+    if (!keys.contains('a') || !keys.contains('b')) {
       return '0';
     } else if (prefs.getString('a') == '' || prefs.getString('b') == '') {
       return '0';
@@ -357,7 +363,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   AnimationController _controller;
-  Animation _colorTween;
+  SequenceAnimation _rainbow;
   Source _source = Source();
   List<Widget> _tabs = [];
   List<Tab> _barTabs = [];
@@ -381,37 +387,66 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _controller.dispose();
     super.dispose();
   }
+
   @override
   void initState() {
     //print("initState");
     super.initState();
 
-    _controller = AnimationController(
-      vsync: this, // the SingleTickerProviderStateMixin
-      duration: Duration(seconds: 10),
-    );
-    _colorTween = ColorTween(begin: Colors.red, end: Colors.green)
+    _controller = AnimationController(vsync: this);
+    _rainbow = SequenceAnimationBuilder()
+        .addAnimatable(
+          animatable:
+              ColorTween(begin: Color(0xffff0000), end: Color(0xffffff00)),
+          from: const Duration(milliseconds: 0),
+          to: const Duration(milliseconds: 500),
+          tag: "color",
+        )
+        .addAnimatable(
+          animatable:
+              ColorTween(begin: Color(0xffffff00), end: Color(0xff00ff00)),
+          from: const Duration(milliseconds: 500),
+          to: const Duration(milliseconds: 1000),
+          tag: "color",
+        )
+        .addAnimatable(
+          animatable:
+              ColorTween(begin: Color(0xff00ff00), end: Color(0xff00ffff)),
+          from: const Duration(milliseconds: 1000),
+          to: const Duration(milliseconds: 1500),
+          tag: "color",
+        )
+        .addAnimatable(
+          animatable:
+              ColorTween(begin: Color(0xff00ffff), end: Color(0xff0000ff)),
+          from: const Duration(milliseconds: 1500),
+          to: const Duration(milliseconds: 2000),
+          tag: "color",
+        )
+        .addAnimatable(
+          animatable:
+              ColorTween(begin: Color(0xff0000ff), end: Color(0xffff00ff)),
+          from: const Duration(milliseconds: 2000),
+          to: const Duration(milliseconds: 2500),
+          tag: "color",
+        )
         .animate(_controller);
-        
+    _controller.addListener(() {
+      if (_controller.status == AnimationStatus.completed)
+        _controller.reverse();
+      if (_controller.status == AnimationStatus.dismissed)
+        _controller.forward();
+    });
+    _controller.forward();
+
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
     if (_isAdmin) {
       var bytes = utf8.encode(globals.username + globals.password);
-      _tabs = [
-        AdminTab.Users(
-          auth: sha1.convert(bytes).toString(),
-        ),
-        AdminTab.Stats(
-          auth: sha1.convert(bytes).toString(),
-        ),
-        tabProfile()
-      ];
+      _tabs = [AdminTab(auth: sha1.convert(bytes).toString()), tabProfile()];
       _barTabs = [
-        Tab(
-          icon: Icon(Icons.person),
-        ),
         Tab(
           icon: Icon(Icons.settings),
         ),
@@ -502,11 +537,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       child = Text('');
     }
     return CircleAvatar(
-        minRadius: radius,
-        maxRadius: radius,
-        backgroundColor: Colors.transparent,
-        backgroundImage: img,
-        child: child);
+      minRadius: radius,
+      maxRadius: radius,
+      backgroundColor: Colors.transparent,
+      backgroundImage: img,
+      child: child,
+    );
   }
 
   Widget clipboardCopier(String text, Text child, EdgeInsets padding) {
@@ -674,9 +710,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
               actions: <Widget>[
                 FlatButton(
+                  child: Text('Do nothing'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                FlatButton(
                   child: Text('Submit bug report'),
                   onPressed: () async {
-                    bool success = await makePOST(
+                    await makePOST(
                       'https://ottomated.net/source/bugreport',
                       {
                         'error': results[1].toString(),
@@ -687,9 +729,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       },
                       true,
                     );
-                    if (success) {
-                      Navigator.of(context).pop();
-                    }
+                    Navigator.of(context).pop();
                   },
                 )
               ],
@@ -737,19 +777,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
       if (_isAdmin) {
         var bytes = utf8.encode(globals.username + globals.password);
-        _tabs = [
-          AdminTab.Users(
-            auth: sha1.convert(bytes).toString(),
-          ),
-          AdminTab.Stats(
-            auth: sha1.convert(bytes).toString(),
-          ),
-          tabProfile()
-        ];
+        _tabs = [AdminTab(auth: sha1.convert(bytes).toString()), tabProfile()];
         _barTabs = [
-          Tab(
-            icon: Icon(Icons.person),
-          ),
           Tab(
             icon: Icon(Icons.settings),
           ),
@@ -766,16 +795,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ];
       }
+
+      results.classes.sort((a, b) {
+        int s = b.semester.compareTo(a.semester);
+        if (s == 0)
+          return (int.tryParse(a.period) ?? 100)
+              .compareTo((int.tryParse(a.period) ?? 100));
+        else
+          return s;
+      });
+
       _tabs.addAll(results.classes.map((sourceClass) {
-        String k = sourceClass.overallGrades.keys
-            .toList()
-            .reversed
-            .firstWhere((k) => k.startsWith('S'), orElse: () => '');
+        int k = sourceClass.semester;
         Color c;
-        if (k == '') {
+        if (k == 0) {
           c = Colors.white24;
         } else {
-          c = Color(sourceClass.overallGrades[k].color);
+          c = Color(sourceClass.overallGrades['S$k'].color);
         }
         _barTabs.add(
           Tab(
@@ -797,7 +833,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    var _tabController = TabController(vsync: this, length: _barTabs.length);
+    var _tabController = TabController(
+        vsync: this, length: _barTabs.length, initialIndex: _isAdmin ? 1 : 0);
     key = GlobalKey<ScaffoldState>();
     return Scaffold(
       key: key,
@@ -874,8 +911,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (_isRefreshing) {
       ws.add(
         SizedBox(
-            child: LinearProgressIndicator(
-              valueColor: _colorTween,
+            child: AnimatedBuilder(
+              builder: (ctx, child) {
+                return Theme(
+                  data: ThemeData(
+                      accentColor: _rainbow["color"].value,
+                      backgroundColor: Colors.transparent),
+                  child: LinearProgressIndicator(),
+                );
+              },
+              animation: _controller,
             ),
             height: 2.0),
       );

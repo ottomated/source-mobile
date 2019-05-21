@@ -46,6 +46,17 @@ class SourceClass {
   String roomNumber;
   double gpaWeight;
 
+  int get semester {
+    return int.tryParse(
+          overallGrades.keys
+              .toList()
+              .reversed
+              .firstWhere((k) => k.startsWith('S'), orElse: () => 'S0')
+              .substring(1),
+        ) ??
+        0;
+  }
+
   Map<String, SourceClassGrade> overallGrades;
   List<SourceAssignment> assignments;
   List<SourceCategory> categories;
@@ -93,9 +104,14 @@ class SourceClass {
               ),
         );
   }
+
   List<SourceCategory> get latestCategories {
-    return this.categories.where((c) => c.semester == this.latestSemester).toList();
+    return this
+        .categories
+        .where((c) => c.semester == this.latestSemester)
+        .toList();
   }
+
   String get latestSemester {
     return this.overallGrades.keys.where((k) => k.startsWith('S')).last;
   }
@@ -410,12 +426,14 @@ class Source {
 
       int i = 0;
       DateTime middle;
-      for (Element gradeEl in row.querySelectorAll('.colorMyGrade')) {
+      for (Element gradeEl in row.querySelectorAll('td')) {
+        if (gradeEl.className.isEmpty) continue;
         res.errorID += '\nParsing semester grade for class ' +
             className +
             ' text ' +
             gradeEl.text;
-        if (gradeEl.text != '[ i ]') {
+        if (gradeEl.text != '[ i ]' &&
+            gradeEl.className.contains('colorMyGrade')) {
           RegExp r = RegExp('[0-9]+(?:\.[0-9]+)?');
           double p = double.parse(r.firstMatch(gradeEl.text).group(0));
           if (gradeEl.text.startsWith('P'))
@@ -435,6 +453,8 @@ class Source {
                     .queryParameters['begdate']
                     .split('/'));
           }
+          print(overallNames);
+          print('$i ${overallNames[i]}');
           if (overallNames[i].startsWith('S')) {
             Tuple2 r = await parseResClassPage(
                 gradeEl.querySelector('a').attributes['href'],
