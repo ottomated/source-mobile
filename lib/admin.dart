@@ -86,7 +86,7 @@ class _AdminTabState extends State<AdminTab>
         List<Tuple2<String, int>> aps = [];
         i = 0;
         for (int ap in data["aps"]) {
-          gpas.add(Tuple2(i.toString(), ap));
+          aps.add(Tuple2(i.toString(), ap));
           i++;
         }
 
@@ -200,6 +200,7 @@ class Histogram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print(data);
     final xAxis = ChartAxis<String>(
       span: ListSpan(data.map((d) => d.item1).toList()),
     );

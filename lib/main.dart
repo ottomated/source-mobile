@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -11,7 +13,7 @@ import 'admin.dart';
 import 'predict.dart';
 
 import 'package:launch_review/launch_review.dart';
-import 'package:get_version/get_version.dart';
+import 'package:package_info/package_info.dart';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'globals.dart' as globals;
@@ -20,8 +22,11 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:dynamic_theme/dynamic_theme.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_sequence_animation/flutter_sequence_animation.dart';
+import 'package:image_picker/image_picker.dart';
 
+PackageInfo packageInfo;
 void main() {
+  PackageInfo.fromPlatform().then((p) => packageInfo = p);
   runApp(SourceApp());
 }
 
@@ -63,7 +68,7 @@ Future<bool> postAnalytics(SourceResults res) async {
       "name": res.name.join(' '),
       "grade": res.grade,
       "system": Platform.operatingSystem,
-      "version": await GetVersion.projectVersion,
+      "version": packageInfo.version,
       "gpa": globals.gpa,
       "weightedGpa": globals.weightedGpa
     },
@@ -113,6 +118,27 @@ class _ClassTabState extends State<ClassTab> {
             ),
             visible: widget.sourceClass.assignments.length > 0 &&
                 widget.sourceClass.categories.length > 0,
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            child: IconButton(
+              icon: Icon(Icons.directions_run),
+              onPressed: () async {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                        title: Text("Attendance"),
+                        content: SingleChildScrollView(
+                          child: Text(
+                            '${widget.sourceClass.absences} absence${widget.sourceClass.absences == 1 ? '' : 's'}\n'
+                            '${widget.sourceClass.tardies} tard${widget.sourceClass.tardies == 1 ? 'y' : 'ies'}',
+                          ),
+                        ),
+                      ),
+                );
+              },
+            ),
           ),
           Column(
             children: <Widget>[
@@ -240,7 +266,16 @@ class _ClassTabState extends State<ClassTab> {
     if (asses.length == 0)
       return Expanded(
         flex: 5,
-        child: Text('emptiness', style: TextStyle(color: Colors.grey)),
+        child: Text(
+            [
+              'emptiness',
+              'void',
+              'vacuum',
+              'nothingness',
+              'unfilled',
+              'spaaaaaaaaaaace'
+            ][Random().nextInt(6)],
+            style: TextStyle(color: Colors.grey)),
       );
     return Expanded(
       flex: 5,
@@ -310,7 +345,11 @@ class SourceApp extends StatelessWidget {
     if (!keys.contains('hasClickedToCopy')) {
       await prefs.setBool('hasClickedToCopy', globals.hasClickedToCopy);
     }
+    if (!keys.contains('customImage')) {
+      await prefs.setString('customImage', globals.customImage);
+    }
     globals.hasClickedToCopy = prefs.getBool('hasClickedToCopy');
+    globals.customImage = prefs.getString('customImage');
     if (!keys.contains('a') || !keys.contains('b')) {
       return '0';
     } else if (prefs.getString('a') == '' || prefs.getString('b') == '') {
@@ -445,20 +484,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ]);
     if (_isAdmin) {
       var bytes = utf8.encode(globals.username + globals.password);
-      _tabs = [AdminTab(auth: sha1.convert(bytes).toString()), tabProfile()];
+      _tabs = [
+        AdminTab(auth: sha1.convert(bytes).toString()),
+        ProfileTab(
+          app: this,
+          isRefreshing: _isRefreshing,
+          results: _results,
+        ),
+      ];
       _barTabs = [
         Tab(
           icon: Icon(Icons.settings),
         ),
         Tab(
-          icon: studentPicture(10.0),
+          icon: studentPicture(10.0, false),
         ),
       ];
     } else {
-      _tabs = [tabProfile()];
+      _tabs = [
+        ProfileTab(
+          app: this,
+          isRefreshing: _isRefreshing,
+          results: _results,
+        ),
+      ];
       _barTabs = [
         Tab(
-          icon: studentPicture(10.0),
+          icon: studentPicture(10.0, false),
         ),
       ];
     }
@@ -477,7 +529,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _checkVersion() async {
-    String currentVersion = await GetVersion.projectVersion;
+    String currentVersion = packageInfo.version;
 
     http.Response r;
     Map js;
@@ -485,7 +537,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       r = await http.post(
         'https://ottomated.net/source/version',
         body: json.encode(
-            {'version': currentVersion, 'os': Platform.operatingSystem}),
+          {'version': currentVersion, 'os': Platform.operatingSystem},
+        ),
       );
       js = json.decode(r.body);
     } catch (e) {
@@ -527,28 +580,128 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _doRefresh();
   }
 
-  Widget studentPicture(double radius) {
+  Widget studentPicture(double radius, bool editable) {
     ImageProvider img;
     Widget child;
-    File imageFile = File(globals.imageFilePath);
+    File imageFile;
+    if (globals.customImage.isNotEmpty)
+      imageFile = File(globals.customImage);
+    else
+      imageFile = File(globals.imageFilePath);
     if (imageFile.existsSync()) {
       img = FileImage(imageFile);
     } else {
-      child = Text('');
+      child = Icon(Icons.remove);
     }
-    return CircleAvatar(
+    var circle = CircleAvatar(
       minRadius: radius,
       maxRadius: radius,
       backgroundColor: Colors.transparent,
       backgroundImage: img,
       child: child,
     );
+    if (editable)
+      return Stack(children: [
+        circle,
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: FloatingActionButton(
+            mini: true,
+            child: Icon(Icons.add_a_photo),
+            onPressed: () async {
+              bool changed = false;
+              await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                      title: Text('Chose Image'),
+                      content: SingleChildScrollView(
+                        child: Column(
+                          children: <Widget>[
+                            RaisedButton.icon(
+                              icon: Icon(Icons.camera),
+                              label: Text("Take a photo"),
+                              color: Colors.lightBlue,
+                              onPressed: () async {
+                                var img = await ImagePicker.pickImage(
+                                    source: ImageSource.camera);
+                                globals.customImage = img.path;
+                                var prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString('customImage', img.path);
+                                changed = true;
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                            RaisedButton.icon(
+                              icon: Icon(Icons.photo),
+                              label: Text("Choose from album"),
+                              color: Colors.blue,
+                              onPressed: () async {
+                                var img = await ImagePicker.pickImage(
+                                    source: ImageSource.gallery);
+                                globals.customImage = img.path;
+                                var prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString('customImage', img.path);
+                                changed = true;
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                            RaisedButton.icon(
+                              icon: Icon(Icons.restore),
+                              label: Text("Reset to school picture"),
+                              color: Colors.purple,
+                              onPressed: () async {
+                                globals.customImage = '';
+                                var prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString('customImage', '');
+                                changed = true;
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                            FlatButton(
+                              child: Text("cancel"),
+                              textColor: Colors.blue,
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+              );
+              if (changed) {
+                setState(() {});
+              }
+            },
+          ),
+        ),
+      ]);
+    else
+      return Container(
+        child: circle,
+        decoration: new BoxDecoration(
+          borderRadius: new BorderRadius.circular(radius + 2),
+          border: new Border.all(
+            width: 2.0,
+            color: Colors.blue,
+          ),
+        ),
+      );
   }
 
   Widget clipboardCopier(String text, Text child, EdgeInsets padding) {
     return Container(
       child: InkWell(
         onTap: () async {
+          var prefs = await SharedPreferences.getInstance();
+          prefs.setBool('hasClickedToCopy', true);
+          setState(() {
+            globals.hasClickedToCopy = true;
+          });
           Clipboard.setData(ClipboardData(text: text));
           key.currentState.showSnackBar(
             SnackBar(
@@ -560,60 +713,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         },
         child: Padding(padding: padding, child: child),
       ),
-    );
-  }
-
-  Widget tabProfile() {
-    if (_results == null) {
-      return Center(
-        child: RaisedButton(
-          child: Text('Refresh'),
-          onPressed: () async {
-            _doRefresh();
-          },
-        ),
-      );
-    }
-    return Column(
-      children: <Widget>[
-        Container(
-          padding: EdgeInsets.all(24.0),
-          child: studentPicture(96.0),
-        ),
-        Text(
-          '${globals.name[0]} ${globals.name.last}',
-          style: TextStyle(fontSize: 24.0),
-        ),
-        Text(
-          globals.username,
-          style: TextStyle(fontSize: 12.0),
-        ),
-        Text(
-          'Grade ${globals.grade}',
-          style: TextStyle(fontSize: 12.0),
-        ),
-        clipboardCopier(
-          globals.studentID,
-          Text(
-            "Student ID: ${globals.studentID}",
-            style: TextStyle(fontSize: 14.0),
-          ),
-          EdgeInsets.fromLTRB(6.0, 12.0, 6.0, 6.0),
-        ),
-        clipboardCopier(
-          globals.stateID,
-          Text(
-            "State ID: ${globals.stateID}",
-            style: TextStyle(fontSize: 14.0),
-          ),
-          EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 12.0),
-        ),
-        Text(
-          'GPA: $gpa\nweighted: $weightedGpa',
-          style: TextStyle(fontSize: 17.0),
-          textAlign: TextAlign.center,
-        )
-      ],
     );
   }
 
@@ -647,6 +746,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _isRefreshing = true;
     });
     dynamic results = await _source.doReq(globals.username, globals.password);
+    if (!mounted) return;
     setState(() {
       _isRefreshing = false;
     });
@@ -724,7 +824,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         'error': results[1].toString(),
                         'trace': results[2].toString(),
                         'system': Platform.operatingSystem,
-                        'version': await GetVersion.platformVersion,
+                        'version': packageInfo.version,
                         'source': json.encode(results[0]),
                       },
                       true,
@@ -777,21 +877,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
       if (_isAdmin) {
         var bytes = utf8.encode(globals.username + globals.password);
-        _tabs = [AdminTab(auth: sha1.convert(bytes).toString()), tabProfile()];
+        _tabs = [
+          AdminTab(auth: sha1.convert(bytes).toString()),
+          ProfileTab(
+            app: this,
+            isRefreshing: _isRefreshing,
+            results: _results,
+          ),
+        ];
         _barTabs = [
           Tab(
             icon: Icon(Icons.settings),
           ),
           Tab(
-            icon: studentPicture(10.0),
+            icon: studentPicture(10.0, false),
           ),
         ];
         //_tabController.index = 2;
       } else {
-        _tabs = [tabProfile()];
+        _tabs = [
+          ProfileTab(
+            app: this,
+            isRefreshing: _isRefreshing,
+            results: _results,
+          ),
+        ];
         _barTabs = [
           Tab(
-            icon: studentPicture(10.0),
+            icon: studentPicture(10.0, false),
           ),
         ];
       }
@@ -911,20 +1024,101 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (_isRefreshing) {
       ws.add(
         SizedBox(
-            child: AnimatedBuilder(
-              builder: (ctx, child) {
-                return Theme(
-                  data: ThemeData(
-                      accentColor: _rainbow["color"].value,
-                      backgroundColor: Colors.transparent),
-                  child: LinearProgressIndicator(),
-                );
-              },
-              animation: _controller,
-            ),
-            height: 2.0),
+          child: AnimatedBuilder(
+            builder: (ctx, child) {
+              return Theme(
+                data: ThemeData(
+                    accentColor: _rainbow["color"].value,
+                    backgroundColor: Colors.transparent),
+                child: LinearProgressIndicator(),
+              );
+            },
+            animation: _controller,
+          ),
+          height: 4.0,
+        ),
       );
     }
     return ws;
+  }
+}
+
+class ProfileTab extends StatefulWidget {
+  final SourceResults results;
+  final bool isRefreshing;
+  final _HomePageState app;
+  ProfileTab({this.app, this.isRefreshing, this.results});
+  @override
+  _ProfileTabState createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  @override
+  Widget build(BuildContext context) {
+    if (widget.results == null) {
+      return Center(
+        child: AnimatedBuilder(
+          builder: (ctx, child) {
+            return Theme(
+              data: ThemeData(
+                  accentColor: widget.app._rainbow["color"].value,
+                  backgroundColor: Colors.transparent),
+              child: CircularProgressIndicator(),
+            );
+          },
+          animation: widget.app._controller,
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Container(
+          padding: EdgeInsets.all(24.0),
+          child: widget.app.studentPicture(96.0, true),
+        ),
+        Text(
+          '${globals.name.first} ${globals.name.last}',
+          style: TextStyle(fontSize: 24.0),
+        ),
+        Text(
+          globals.username,
+          style: TextStyle(fontSize: 12.0),
+        ),
+        Text(
+          'Grade ${globals.grade}',
+          style: TextStyle(fontSize: 12.0),
+        ),
+        widget.app.clipboardCopier(
+          globals.studentID,
+          Text(
+            "Student ID: ${globals.studentID}",
+            style: TextStyle(fontSize: 14.0),
+          ),
+          EdgeInsets.fromLTRB(6.0, 12.0, 6.0, 6.0),
+        ),
+        widget.app.clipboardCopier(
+          globals.stateID,
+          Text(
+            "State ID: ${globals.stateID}",
+            style: TextStyle(fontSize: 14.0),
+          ),
+          EdgeInsets.fromLTRB(6.0, 6.0, 6.0, 12.0),
+        ),
+        Text(
+          'GPA: ${widget.app.gpa}\nweighted: ${widget.app.weightedGpa}',
+          style: TextStyle(fontSize: 17.0),
+          textAlign: TextAlign.center,
+        ),
+        if (!globals.hasClickedToCopy)
+          Container(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'You can click your student/state ID to copy them,\nor click on a teacher\'s name to view their info,\nor click on their email to send them a message',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          )
+      ],
+    );
   }
 }

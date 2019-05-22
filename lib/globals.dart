@@ -12,3 +12,4 @@ double weightedGpa;
 bool cameBackFromSettingsRefresh = false;
 bool cameBackFromSettingsRefresh2 = false;
 bool hasClickedToCopy = false;
+String customImage = '';

@@ -23,6 +23,13 @@ Source files are located in `lib/*.dart`.
 
 ## Release History
 
+* 1.3
+		* Completely reworked admin panel
+		* Removed notifications from the app
+		* Added attendance
+		* Made the loading indicator rainbow
+		* Added the ability to customize your picture
+		* Added feature discoveries
 * 1.2.1
     * Fix default brightness
 * 1.2

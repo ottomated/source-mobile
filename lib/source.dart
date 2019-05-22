@@ -20,7 +20,6 @@ class SourceResults {
   String imageFilePath;
   String grade;
   String html;
-  String errorID;
   List<SourceClass> classes;
   SourceResults() {
     this.name = [];
@@ -29,7 +28,6 @@ class SourceResults {
     this.imageFilePath = '';
     this.grade = '';
     this.html = '';
-    this.errorID = '';
     this.classes = [];
   }
   factory SourceResults.fromJson(Map<String, dynamic> json) =>
@@ -45,6 +43,8 @@ class SourceClass {
   String teacherEmail;
   String roomNumber;
   double gpaWeight;
+  int absences;
+  int tardies;
 
   int get semester {
     return int.tryParse(
@@ -144,7 +144,9 @@ class SourceClass {
       this.roomNumber,
       this.overallGrades,
       this.assignments,
-      this.categories}) {
+      this.categories,
+      this.absences,
+      this.tardies}) {
     Iterable<String> nameWords = this.className.split(' ');
     if (nameWords.contains('AP')) {
       this.gpaWeight = 1.25;
@@ -390,34 +392,31 @@ class Source {
   var _client = http.Client();
 
   Future<void> parseResHTML(SourceResults res) async {
-    res.errorID += '\nParsing html';
     Document document = parse(res.html);
 
-    res.errorID += '\nGetting quarter names';
     // Get names of each quarter/semester
     Element headerRow =
         document.querySelector('#tblgrades tbody tr.center.th2');
     List<String> overallNames =
         headerRow.children.sublist(4, 10).map((el) => el.text).toList();
 
-    res.errorID += '\nGetting rows';
     List<Element> rows =
         document.querySelectorAll('#tblgrades tbody tr.center:not(.th2)');
     for (Element row in rows) {
-      res.errorID += '\nParsing period ' + row.firstChild.text;
       // Period
       String period = row.children[0].innerHtml.split('(')[0];
-      res.errorID += '\nParsing class name/room ' + row.firstChild.text;
       // Teacher + Class Name box
       Element box = row.querySelector('[align="left"]');
       // Class name and room                v magic character
       String className = box.text.split('\u00A0')[0].trim();
       String room = box.text.split('Rm:')[1].trim();
       // Teacher info
-      res.errorID += '\nParsing teacher ' + row.firstChild.text;
       String teacherName = box.children.last.text.trim();
       String teacherEmail =
           box.children.last.attributes['href'].split('mailto:')[1].trim();
+
+      int absences;
+      int tardies;
 
       Map<String, SourceClassGrade> grades = {};
 
@@ -428,10 +427,6 @@ class Source {
       DateTime middle;
       for (Element gradeEl in row.querySelectorAll('td')) {
         if (gradeEl.className.isEmpty) continue;
-        res.errorID += '\nParsing semester grade for class ' +
-            className +
-            ' text ' +
-            gradeEl.text;
         if (gradeEl.text != '[ i ]' &&
             gradeEl.className.contains('colorMyGrade')) {
           RegExp r = RegExp('[0-9]+(?:\.[0-9]+)?');
@@ -441,20 +436,16 @@ class Source {
           else
             grades[overallNames[i]] = (SourceClassGrade(p));
           if (overallNames[i] == 'Q1' || overallNames[i] == 'Q3') {
-            res.errorID += '\nParsing middle ' + gradeEl.text;
             middle = _parseDateTime(
                 Uri.parse(gradeEl.querySelector('a').attributes['href'])
                     .queryParameters['enddate']
                     .split('/'));
           } else if (overallNames[i] == 'Q2' || overallNames[i] == 'Q2') {
-            res.errorID += '\nParsing middle ' + gradeEl.text;
             middle = _parseDateTime(
                 Uri.parse(gradeEl.querySelector('a').attributes['href'])
                     .queryParameters['begdate']
                     .split('/'));
           }
-          print(overallNames);
-          print('$i ${overallNames[i]}');
           if (overallNames[i].startsWith('S')) {
             Tuple2 r = await parseResClassPage(
                 gradeEl.querySelector('a').attributes['href'],
@@ -467,18 +458,25 @@ class Source {
             assignments.addAll(newAsses);
             categories.addAll(newCats);
           }
+        } else if (gradeEl.className.contains('termabs')) {
+          absences = int.tryParse(gradeEl.text) ?? 0;
+        } else if (gradeEl.className.contains('termtar')) {
+          tardies = int.tryParse(gradeEl.text) ?? 0;
         }
         i++;
       }
       res.classes.add(SourceClass(
-          period: period,
-          className: className,
-          roomNumber: room,
-          teacherName: teacherName,
-          teacherEmail: teacherEmail,
-          overallGrades: grades,
-          assignments: assignments,
-          categories: categories));
+        period: period,
+        className: className,
+        roomNumber: room,
+        teacherName: teacherName,
+        teacherEmail: teacherEmail,
+        overallGrades: grades,
+        assignments: assignments,
+        categories: categories,
+        absences: absences,
+        tardies: tardies,
+      ));
       // Period
       // Teacher + class name
       // Grades
@@ -499,7 +497,6 @@ class Source {
     http.Request req;
     http.StreamedResponse response;
     String body;
-    res.errorID += '\nRequesting class page ' + url;
     // Make request
     req = http.Request(
         'GET', Uri.parse('https://ps.seattleschools.org/guardian/$url'))
@@ -515,13 +512,11 @@ class Source {
     List<SourceCategory> cats = [];
 
     for (var row in catElements) {
-      res.errorID += '\nParsing category name ' + row.firstChild.text;
       List<String> n = row.children[0].text.split(' (');
       if (n.length != 2) continue;
       String id = n[1].split(')')[0];
       String name = n[0];
 
-      res.errorID += '\nParsing category weight ' + row.children[1].text;
       String w = row.children[1].text.split('%')[0];
       double weight;
       if (w == '-') {
@@ -546,12 +541,10 @@ class Source {
 
     for (var row in assElements) {
       if (row.children[0].text == 'No assignments found.') continue;
-      res.errorID += '\nGetting date ' + row.children[0].text;
       List<String> date = row.children[0].text.split('/');
       if (date.length == 1) continue;
       String category = row.children[1].text;
       String name = row.children[2].text;
-      res.errorID += '\nParsing grade ' + row.children[8].text;
       List<String> grade = row.children[8].text.split('/');
       List<double> parsedGrade = [0, 0];
       bool graded = true;
@@ -564,10 +557,7 @@ class Source {
       try {
         parsedGrade[1] = double.parse(grade[1]);
       } catch (e) {}
-      res.errorID += '\nParsing date $date';
       DateTime dueDate = _parseDateTime(date);
-
-      res.errorID += '\nConstructing ass: grade: $grade -> $parsedGrade';
 
       Set<String> flags = Set();
       const List<String> fConst = [
@@ -755,7 +745,6 @@ class Source {
       return res;
     }
     SourceResults res = SourceResults();
-    res.errorID += '\nRequest 1';
     try {
       http.Request req;
       http.StreamedResponse response;
@@ -767,7 +756,6 @@ class Source {
       response = await _client.send(req);
       _cookies.setCookies(response.headers['set-cookie']);
       // Initialize session
-      res.errorID += '\nRequest 2';
       req = http.Request(
           'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
         ..followRedirects = false;
@@ -775,7 +763,6 @@ class Source {
       response = await _client.send(req);
       _cookies.setCookies(response.headers['set-cookie']);
       // Get home
-      res.errorID += '\nRequest 3';
       req = http.Request(
           'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
         ..followRedirects = false;
@@ -786,7 +773,6 @@ class Source {
             'The Source is down for maintenance.\nRegular hours:\nWednesday: 10PM - 11PM\nSaturday: 6AM-9AM');
       _cookies.setCookies(response.headers['set-cookie']);
       // Parse out tokens
-      res.errorID += '\nRequest 3: getting tokens';
       String body = await response.stream.transform(utf8.decoder).join();
       RegExp pstokenRgx =
           RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
@@ -800,7 +786,6 @@ class Source {
         throw SocketException(
             'There\'s a problem that\'s not my fault right now');
       }
-      res.errorID += '\nRequest 4';
       // Login request
       req = http.Request(
           'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
@@ -815,7 +800,6 @@ class Source {
         throw SocketException(
             'There\'s a problem that\'s not my fault right now');
       _cookies.setCookies(response.headers['set-cookie']);
-      res.errorID += '\nRequest 5';
       // Get page html
       req = http.Request(
           'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
@@ -829,7 +813,6 @@ class Source {
       body = await response.stream.transform(utf8.decoder).join();
       res.html = body;
 
-      res.errorID += '\nGetting student info';
       // Get stuff from home
       res.studentID =
           RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
@@ -844,7 +827,6 @@ class Source {
               .firstMatch(body)
               .group(1);
 
-      res.errorID += '\nGetting photo';
       // Download photo html page
       req = http.Request(
           'GET',
@@ -864,13 +846,11 @@ class Source {
             studentPhotoRgx.firstMatch(body).group(1);
       }
 
-      res.errorID += '\nGetting full name';
       // Extract full name
       RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
       String name = nameRgx.firstMatch(body).group(1);
       res.name.addAll(name.split(', ')[1].split(' '));
       res.name.add(name.split(', ')[0]);
-      res.errorID += '\nDownloading photo';
       // Download photo
       req = http.Request('GET', Uri.parse(studentPhotoUrl))
         ..followRedirects = false;
