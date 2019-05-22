@@ -15,7 +15,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsPageState extends State<SettingsPage> {
-  SharedPreferences _prefs;
   GlobalKey<ScaffoldState> key;
 
   bool _working = false;
@@ -49,7 +48,7 @@ class SettingsPageState extends State<SettingsPage> {
                       var prefs = await SharedPreferences.getInstance();
                       prefs.setString('a', '');
                       prefs.setString('b', '');
-                      await _prefs.remove('results');
+                      await prefs.remove('results');
                       globals.cameBackFromSettingsRefresh = true;
                       Navigator.pop(pageContext);
                     },
