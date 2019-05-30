@@ -440,7 +440,7 @@ class Source {
                 Uri.parse(gradeEl.querySelector('a').attributes['href'])
                     .queryParameters['enddate']
                     .split('/'));
-          } else if (overallNames[i] == 'Q2' || overallNames[i] == 'Q2') {
+          } else if (overallNames[i] == 'Q2' || overallNames[i] == 'Q4') {
             middle = _parseDateTime(
                 Uri.parse(gradeEl.querySelector('a').attributes['href'])
                     .queryParameters['begdate']
