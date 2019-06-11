@@ -424,8 +424,12 @@ class Source {
       List<SourceCategory> categories = [];
 
       int i = 0;
+      bool inGradeArea = false;
       DateTime middle;
       for (Element gradeEl in row.querySelectorAll('td')) {
+        if (gradeEl.attributes['align'] == 'left')
+          inGradeArea = true;
+        else if (!inGradeArea) continue;
         if (gradeEl.className.isEmpty) continue;
         if (gradeEl.text != '[ i ]' &&
             gradeEl.className.contains('colorMyGrade')) {
@@ -745,127 +749,123 @@ class Source {
       return res;
     }
     SourceResults res = SourceResults();
+    //try {
+    http.Request req;
+    http.StreamedResponse response;
+    _cookies = CookieStore();
+    // Initialize session
+    req =
+        http.Request('GET', Uri.parse('https://ps.seattleschools.org/public/'))
+          ..followRedirects = false;
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Initialize session
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Get home
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    if (response.headers['set-cookie'] == null)
+      throw SocketException(
+          'The Source is down for maintenance.\nRegular hours:\nWednesday: 10PM - 11PM\nSaturday: 6AM-9AM');
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Parse out tokens
+    String body = await response.stream.transform(utf8.decoder).join();
+    RegExp pstokenRgx =
+        RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
+    RegExp contextDataRgx = RegExp(
+        r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
+    String pstoken, contextData;
     try {
-      http.Request req;
-      http.StreamedResponse response;
-      _cookies = CookieStore();
-      // Initialize session
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/public/'))
-        ..followRedirects = false;
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Initialize session
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/my.policy'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Get home
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/public/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      if (response.headers['set-cookie'] == null)
-        throw SocketException(
-            'The Source is down for maintenance.\nRegular hours:\nWednesday: 10PM - 11PM\nSaturday: 6AM-9AM');
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Parse out tokens
-      String body = await response.stream.transform(utf8.decoder).join();
-      RegExp pstokenRgx =
-          RegExp(r'<input type="hidden" name="pstoken" value="(\w+?)" \/>');
-      RegExp contextDataRgx = RegExp(
-          r'<input type="hidden" name="contextData" id="contextData" value="(\w+?)" \/>');
-      String pstoken, contextData;
-      try {
-        pstoken = pstokenRgx.firstMatch(body).group(1);
-        contextData = contextDataRgx.firstMatch(body).group(1);
-      } catch (e) {
-        throw SocketException(
-            'There\'s a problem that\'s not my fault right now');
-      }
-      // Login request
-      req = http.Request(
-          'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({
-        'Cookie': _cookies.toString(),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      });
-      req.body = generateLoginBody(username, password, pstoken, contextData);
-      response = await _client.send(req);
-      if (response.headers['set-cookie'] == null)
-        throw SocketException(
-            'There\'s a problem that\'s not my fault right now');
-      _cookies.setCookies(response.headers['set-cookie']);
-      // Get page html
-      req = http.Request(
-          'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      if (response.statusCode != 200) {
-        return null;
-      }
-      body = await response.stream.transform(utf8.decoder).join();
-      res.html = body;
-
-      // Get stuff from home
-      res.studentID =
-          RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
-      res.stateID =
-          RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
-      res.grade =
-          RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
-              .firstMatch(body)
-              .group(1);
-
-      // Download photo html page
-      req = http.Request(
-          'GET',
-          Uri.parse(
-              'https://ps.seattleschools.org/guardian/student_photo.html'))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      _cookies.setCookies(response.headers['set-cookie']);
-      body = await response.stream.transform(utf8.decoder).join();
-      // Extract photo url
-      RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
-      String studentPhotoUrl =
-          'https://p8cdn4static.sharpschool.com/UserFiles/Servers/Server_543/Templates/seattle-logo.png';
-      if (studentPhotoRgx.hasMatch(body)) {
-        studentPhotoUrl = 'https://ps.seattleschools.org' +
-            studentPhotoRgx.firstMatch(body).group(1);
-      }
-
-      // Extract full name
-      RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
-      String name = nameRgx.firstMatch(body).group(1);
-      res.name.addAll(name.split(', ')[1].split(' '));
-      res.name.add(name.split(', ')[0]);
-      // Download photo
-      req = http.Request('GET', Uri.parse(studentPhotoUrl))
-        ..followRedirects = false;
-      req.headers.addAll({'Cookie': _cookies.toString()});
-      response = await _client.send(req);
-      var bytes = await response.stream.toBytes();
-      String dir = (await getApplicationDocumentsDirectory()).path;
-      File file = File('$dir/${res.name[0]}.jpeg');
-      res.imageFilePath = '$dir/${res.name[0]}.jpeg';
-      await file.writeAsBytes(bytes);
-      // Parse HTMLs
-      await parseResHTML(res);
-      return res;
-    } catch (e, trace) {
-      return [res, e, trace];
+      pstoken = pstokenRgx.firstMatch(body).group(1);
+      contextData = contextDataRgx.firstMatch(body).group(1);
+    } catch (e) {
+      throw SocketException(
+          'There\'s a problem that\'s not my fault right now');
     }
+    // Login request
+    req = http.Request(
+        'POST', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({
+      'Cookie': _cookies.toString(),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    });
+    req.body = generateLoginBody(username, password, pstoken, contextData);
+    response = await _client.send(req);
+    if (response.headers['set-cookie'] == null)
+      throw SocketException(
+          'There\'s a problem that\'s not my fault right now');
+    _cookies.setCookies(response.headers['set-cookie']);
+    // Get page html
+    req = http.Request(
+        'GET', Uri.parse('https://ps.seattleschools.org/guardian/home.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    if (response.statusCode != 200) {
+      return null;
+    }
+    body = await response.stream.transform(utf8.decoder).join();
+    res.html = body;
+
+    // Get stuff from home
+    res.studentID =
+        RegExp(r'Student ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+            .firstMatch(body)
+            .group(1);
+    res.stateID = RegExp(r'State ID #:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+        .firstMatch(body)
+        .group(1);
+    res.grade = RegExp(r'Grade Level:<\/div>[\s\S]+?st-demo-val">(.+?)<\/div>')
+        .firstMatch(body)
+        .group(1);
+
+    // Download photo html page
+    req = http.Request('GET',
+        Uri.parse('https://ps.seattleschools.org/guardian/student_photo.html'))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    _cookies.setCookies(response.headers['set-cookie']);
+    body = await response.stream.transform(utf8.decoder).join();
+    // Extract photo url
+    RegExp studentPhotoRgx = RegExp('<img src="(.+)" alt="');
+    String studentPhotoUrl =
+        'https://p8cdn4static.sharpschool.com/UserFiles/Servers/Server_543/Templates/seattle-logo.png';
+    if (studentPhotoRgx.hasMatch(body)) {
+      studentPhotoUrl = 'https://ps.seattleschools.org' +
+          studentPhotoRgx.firstMatch(body).group(1);
+    }
+
+    // Extract full name
+    RegExp nameRgx = RegExp('<title>(.+)<\\/title>');
+    String name = nameRgx.firstMatch(body).group(1);
+    res.name.addAll(name.split(', ')[1].split(' '));
+    res.name.add(name.split(', ')[0]);
+    // Download photo
+    req = http.Request('GET', Uri.parse(studentPhotoUrl))
+      ..followRedirects = false;
+    req.headers.addAll({'Cookie': _cookies.toString()});
+    response = await _client.send(req);
+    var bytes = await response.stream.toBytes();
+    String dir = (await getApplicationDocumentsDirectory()).path;
+    File file = File('$dir/${res.name[0]}.jpeg');
+    res.imageFilePath = '$dir/${res.name[0]}.jpeg';
+    await file.writeAsBytes(bytes);
+    // Parse HTMLs
+    await parseResHTML(res);
+    return res;
+    //} catch (e, trace) {
+    //  return [res, e, trace];
+    //}
   }
 }

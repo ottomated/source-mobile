@@ -1109,17 +1109,18 @@ class _ProfileTabState extends State<ProfileTab> {
           style: TextStyle(fontSize: 17.0),
           textAlign: TextAlign.center,
         ),
-          Container(
-            padding: EdgeInsets.all(8.0),
-            child: Text(
-              globals.hasClickedToCopy ? 'You can click your student/state ID to copy them,\n'
-              'or click on a teacher\'s name to view their info,\n'
-              'or click on their email to send them a message' :
-              'GPA calculations are not 100% accurate.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          )
+        Container(
+          padding: EdgeInsets.all(8.0),
+          child: Text(
+            globals.hasClickedToCopy
+                ? 'GPA calculations are not 100% accurate.'
+                : 'You can click your student/state ID to copy them,\n'
+                    'or click on a teacher\'s name to view their info,\n'
+                    'or click on their email to send them a message',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        )
       ],
     );
   }
